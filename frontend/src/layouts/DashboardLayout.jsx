@@ -63,6 +63,7 @@ export default function DashboardLayout() {
 
   const adminMenuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: `/admin/dashboard` },
+    { icon: ShoppingCart, label: 'Orders', path: `/admin/orders` },
     { icon: Package, label: 'Storeroom Control', path: `/admin/storeroom` },
     { icon: Store, label: 'Shop Approvals', path: `/admin/shops` },
     { icon: Wallet, label: 'Transactions', path: `/admin/transactions` },

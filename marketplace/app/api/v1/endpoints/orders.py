@@ -29,25 +29,34 @@ async def gen_unique_order_id(db: AsyncSession) -> str:
     raise HTTPException(500, "Could not generate a unique order ID, please retry")
 
 
-def order_dict(o: Order) -> dict:
+def order_dict(o: Order, seller_id: int | None = None) -> dict:
+    """A cart can span multiple sellers in one order. When `seller_id` is
+    given (seller-facing views), items/subtotal/total are scoped to just
+    that seller's line items — otherwise a seller would see other sellers'
+    products and an inflated total on their own order list."""
+    all_items = o.items or []
+    items_src = [oi for oi in all_items if seller_id is None or oi.seller_id == seller_id]
+    items = [
+        {
+            "productId": oi.seller_product_id,
+            "name": oi.product_name,
+            "price": float(oi.price),
+            "quantity": oi.quantity,
+            "image": oi.image,
+            "category": oi.category,
+            "sellerId": oi.seller_id,
+        }
+        for oi in items_src
+    ]
+    is_scoped = seller_id is not None
+    seller_subtotal = round(sum(i["price"] * i["quantity"] for i in items), 2)
     return {
         "id": o.id,
-        "items": [
-            {
-                "productId": oi.seller_product_id,
-                "name": oi.product_name,
-                "price": float(oi.price),
-                "quantity": oi.quantity,
-                "image": oi.image,
-                "category": oi.category,
-                "sellerId": oi.seller_id,
-            }
-            for oi in (o.items or [])
-        ],
-        "subtotal": float(o.subtotal),
-        "tax": float(o.tax),
-        "shipping": float(o.shipping),
-        "total": float(o.total),
+        "items": items,
+        "subtotal": seller_subtotal if is_scoped else float(o.subtotal),
+        "tax": 0.0 if is_scoped else float(o.tax),
+        "shipping": 0.0 if is_scoped else float(o.shipping),
+        "total": seller_subtotal if is_scoped else float(o.total),
         "status": o.status.value,
         "shippingAddress": {
             "name": o.shipping_name,
@@ -90,6 +99,12 @@ class OrderIn(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str
+
+
+# Forward-only fulfillment pipeline. Cancelled is reachable from any
+# non-terminal state but is itself terminal, same as Delivered.
+ORDER_FLOW = [OrderStatus.Processing, OrderStatus.Confirmed, OrderStatus.Packed,
+              OrderStatus.Shipped, OrderStatus.Delivered]
 
 
 @router.post("")
@@ -178,7 +193,8 @@ async def my_orders(user: User = Depends(current_user), db: AsyncSession = Depen
               .where(OrderItem.seller_id == user.id).distinct()
     q = q.order_by(Order.created_at.desc())
     orders = (await db.execute(q)).scalars().all()
-    return ok({"orders": [order_dict(o) for o in orders]})
+    seller_id = user.id if user.role.value == "seller" else None
+    return ok({"orders": [order_dict(o, seller_id=seller_id) for o in orders]})
 
 
 @router.get("/seller")
@@ -188,7 +204,9 @@ async def seller_orders(user: User = Depends(seller_only), db: AsyncSession = De
         .where(OrderItem.seller_id == user.id).distinct()\
         .order_by(Order.created_at.desc())
     orders = (await db.execute(q)).scalars().all()
-    return ok({"orders": [order_dict(o) for o in orders]})
+    # seller_only also lets an admin through; only scope items for an actual seller.
+    seller_id = user.id if user.role.value == "seller" else None
+    return ok({"orders": [order_dict(o, seller_id=seller_id) for o in orders]})
 
 
 @router.get("/customer")
@@ -212,7 +230,8 @@ async def get_order(order_id: str, user: User = Depends(current_user),
         return err("Order not found", 404)
     if user.role == UserRole.seller and not any(i.seller_id == user.id for i in o.items):
         return err("Order not found", 404)
-    return ok({"order": order_dict(o)})
+    seller_id = user.id if user.role == UserRole.seller else None
+    return ok({"order": order_dict(o, seller_id=seller_id)})
 
 
 @router.put("/{order_id}/status")
@@ -229,11 +248,22 @@ async def update_status(order_id: str, data: StatusUpdate,
     if user.role == UserRole.seller and not any(i.seller_id == user.id for i in o.items):
         return err("Order not found", 404)
     try:
-        o.status = OrderStatus(data.status)
+        new_status = OrderStatus(data.status)
     except ValueError:
         return err("Invalid status", 400)
+
+    if o.status in (OrderStatus.Delivered, OrderStatus.Cancelled):
+        return err(f"Order is already {o.status.value.lower()} and can't be updated", 400)
+    if new_status != OrderStatus.Cancelled:
+        current_idx = ORDER_FLOW.index(o.status) if o.status in ORDER_FLOW else -1
+        new_idx = ORDER_FLOW.index(new_status) if new_status in ORDER_FLOW else -1
+        if new_idx <= current_idx:
+            return err(f"Cannot move status backward from {o.status.value} to {new_status.value}", 400)
+
+    o.status = new_status
     o.updated_at = datetime.utcnow()
     db.add(o)
     await db.commit()
     await db.refresh(o)
-    return ok({"order": order_dict(o)})
+    seller_id = user.id if user.role == UserRole.seller else None
+    return ok({"order": order_dict(o, seller_id=seller_id)})

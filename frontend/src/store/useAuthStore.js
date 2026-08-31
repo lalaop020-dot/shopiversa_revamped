@@ -35,12 +35,11 @@ const useAuthStore = create(
         return { user, role }
       },
 
+      // Seller signup does NOT log the user in — the shop is pending admin
+      // approval and can't be used until then, so no token is issued.
       registerSeller: async (name, shopName, email, password) => {
         const { data } = await api.post('/auth/register/seller', { name, shopName, email, password })
-        const { user, role, token } = data.data
-        localStorage.setItem('token', token)
-        set({ user, role, token, isAuthenticated: true })
-        return { user, role }
+        return data.data
       },
 
       logout: () => {

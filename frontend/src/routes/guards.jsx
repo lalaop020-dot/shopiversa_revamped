@@ -3,7 +3,7 @@ import useAuthStore from '../store/useAuthStore'
 
 // Protected Route Guard
 export const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { isAuthenticated, role } = useAuthStore()
+  const { isAuthenticated, role, user } = useAuthStore()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
@@ -11,6 +11,12 @@ export const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (allowedRoles && !allowedRoles.includes(role)) {
     return <Navigate to="/" replace />
+  }
+
+  // A seller whose shop isn't (or is no longer) approved — e.g. suspended
+  // after approval — can't use seller-only pages even with a valid session.
+  if (role === 'seller' && user?.shopStatus && user.shopStatus !== 'approved') {
+    return <Navigate to="/seller-pending" state={{ shopStatus: user.shopStatus, shopName: user.shopName }} replace />
   }
 
   return children

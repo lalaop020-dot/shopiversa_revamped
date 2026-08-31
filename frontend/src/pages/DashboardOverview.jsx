@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
 import { TrendingUp, TrendingDown, Users, ShoppingCart, DollarSign, Package, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react'
@@ -7,6 +8,7 @@ import usePlatformStore, { DEFAULT_BALANCE } from '../store/usePlatformStore'
 import { useProductStore } from '../store/useProductStore'
 
 export default function DashboardOverview({ role }) {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const email = user?.email || 'seller@demo.com'
 
@@ -43,10 +45,13 @@ export default function DashboardOverview({ role }) {
   const totalPlatformOrders = adminDashboardStats?.totalOrders ?? 0
   const totalPlatformProducts = adminDashboardStats?.products ?? storeroomProducts.length
 
-  // Pending approvals
+  // Pending approvals — must include pending seller shop applications
+  // (from /admin/dashboard/stats), not just tx/package requests, otherwise
+  // this reads 0 even when a shop is genuinely awaiting approval.
+  const pendingSellerApprovals = adminDashboardStats?.pendingApprovals ?? 0
   const pendingTransactions = transactions.filter(t => t.status === 'Pending').length
   const pendingPackages = packageRequests.filter(r => r.status === 'Pending').length
-  const totalPendingApprovals = pendingTransactions + pendingPackages
+  const totalPendingApprovals = pendingSellerApprovals + pendingTransactions + pendingPackages
 
   // Seller-specific stats
   const myProducts = sellerProducts[email] || []
@@ -188,7 +193,8 @@ export default function DashboardOverview({ role }) {
       trend: totalPlatformRevenue > 0 ? 'up' : 'neutral',
       icon: DollarSign,
       color: 'text-green-500',
-      subtitle: 'From approved deposits'
+      subtitle: 'From approved deposits',
+      route: '/admin/transactions',
     },
     {
       label: 'Total Products',
@@ -197,7 +203,8 @@ export default function DashboardOverview({ role }) {
       trend: totalPlatformProducts > 0 ? 'up' : 'neutral',
       icon: Package,
       color: 'text-primary',
-      subtitle: `${storeroomProducts.reduce((s, p) => s + p.stock, 0)} total stock`
+      subtitle: `${storeroomProducts.reduce((s, p) => s + p.stock, 0)} total stock`,
+      route: '/admin/storeroom',
     },
     {
       label: 'Total Orders',
@@ -206,7 +213,7 @@ export default function DashboardOverview({ role }) {
       trend: totalPlatformOrders > 0 ? 'up' : 'neutral',
       icon: ShoppingCart,
       color: 'text-accent-gold',
-      subtitle: 'Combined seller sales'
+      subtitle: 'Combined seller sales',
     },
     {
       label: 'Pending Approvals',
@@ -215,7 +222,8 @@ export default function DashboardOverview({ role }) {
       trend: totalPendingApprovals > 0 ? 'alert' : 'neutral',
       icon: AlertCircle,
       color: totalPendingApprovals > 0 ? 'text-red-500' : 'text-green-500',
-      subtitle: `${pendingTransactions} tx · ${pendingPackages} pkg`
+      subtitle: `${pendingSellerApprovals} shops · ${pendingTransactions} tx · ${pendingPackages} pkg`,
+      route: '/admin/shops',
     },
   ]
 
@@ -227,7 +235,8 @@ export default function DashboardOverview({ role }) {
       trend: balances.balance > 0 ? 'up' : 'neutral',
       icon: DollarSign,
       color: 'text-green-500',
-      subtitle: `$${balances.totalWithdrawn.toFixed(2)} withdrawn`
+      subtitle: `$${balances.totalWithdrawn.toFixed(2)} withdrawn`,
+      route: '/seller/wallet',
     },
     {
       label: 'My Products',
@@ -236,7 +245,8 @@ export default function DashboardOverview({ role }) {
       trend: myProducts.length > 0 ? 'up' : 'neutral',
       icon: Package,
       color: 'text-primary',
-      subtitle: `${myTotalSales} total sales`
+      subtitle: `${myTotalSales} total sales`,
+      route: '/seller/products',
     },
     {
       label: 'Total Sales',
@@ -245,7 +255,8 @@ export default function DashboardOverview({ role }) {
       trend: myTotalSales > 0 ? 'up' : 'neutral',
       icon: ShoppingCart,
       color: 'text-accent-gold',
-      subtitle: `Across ${myProducts.length} products`
+      subtitle: `Across ${myProducts.length} products`,
+      route: '/seller/orders',
     },
     {
       label: 'Stock Alerts',
@@ -254,7 +265,8 @@ export default function DashboardOverview({ role }) {
       trend: myStockAlerts > 0 ? 'alert' : 'neutral',
       icon: AlertCircle,
       color: myStockAlerts > 0 ? 'text-red-500' : 'text-green-500',
-      subtitle: myStockAlerts > 0 ? 'Products need restocking' : 'Inventory healthy'
+      subtitle: myStockAlerts > 0 ? 'Products need restocking' : 'Inventory healthy',
+      route: '/seller/products',
     },
   ]
 
@@ -264,7 +276,14 @@ export default function DashboardOverview({ role }) {
     <div className="space-y-8 animate-fade-in">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
-          <Card key={i} className="flex flex-col gap-4">
+          <Card
+            key={i}
+            onClick={stat.route ? () => navigate(stat.route) : undefined}
+            role={stat.route ? 'button' : undefined}
+            tabIndex={stat.route ? 0 : undefined}
+            onKeyDown={stat.route ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(stat.route) } } : undefined}
+            className={`flex flex-col gap-4 ${stat.route ? 'cursor-pointer transition-transform hover:-translate-y-0.5 hover:border-primary/50' : ''}`}
+          >
             <div className="flex justify-between items-start">
               <div className={`p-3 rounded-xl bg-dark-bg ${stat.color}`}>
                 <stat.icon className="w-6 h-6" />

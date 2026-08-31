@@ -28,9 +28,9 @@ export default function SellerRegister() {
   const onSubmit = async (data) => {
     setIsLoading(true)
     try {
-      await registerSeller(data.name, data.shopName, data.email, data.password)
-      toast.success('Shop application submitted! Awaiting admin approval.')
-      navigate('/seller/dashboard')
+      const { user } = await registerSeller(data.name, data.shopName, data.email, data.password)
+      toast.success('Shop application submitted!')
+      navigate('/seller-pending', { state: { shopStatus: user.shopStatus, shopName: user.shopName } })
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Registration failed')
     } finally {

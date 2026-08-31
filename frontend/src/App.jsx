@@ -11,6 +11,7 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import SellerRegister from './pages/SellerRegister'
+import SellerPending from './pages/SellerPending'
 import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import ProductDetail from './pages/ProductDetail'
@@ -26,6 +27,7 @@ import ShopSettings from './pages/seller/Settings'
 import SupportTickets from './pages/seller/Support'
 import AddEditProduct from './pages/seller/AddEditProduct'
 import SellerApprovals from './pages/admin/SellerApprovals'
+import AdminOrders from './pages/admin/AdminOrders'
 import CustomerProfile from './pages/CustomerProfile'
 import NotificationsPage from './pages/NotificationsPage'
 import AdminTransactions from './pages/admin/AdminTransactions'
@@ -57,6 +59,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/seller-register" element={<SellerRegister />} />
+            <Route path="/seller-pending" element={<SellerPending />} />
             <Route path="/setup-password" element={<TransactionPasswordSetup />} />
           </Route>
 
@@ -91,6 +94,7 @@ function App() {
             }
           >
             <Route path="dashboard" element={<DashboardOverview role="admin" />} />
+            <Route path="orders" element={<AdminOrders />} />
             <Route path="shops" element={<SellerApprovals />} />
             <Route path="transactions" element={<AdminTransactions />} />
             <Route path="withdrawal" element={<AdminWithdrawal />} />

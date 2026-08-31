@@ -11,14 +11,21 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Auth endpoints intentionally return 401 for bad credentials — that's a normal
+// rejected login, not an expired session, so it must NOT trigger the global
+// logout+redirect below (which would wipe the page before any error can show).
+const isAuthRequest = (config) => /\/auth\/(login|register)/.test(config?.url || '')
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isAuthRequest(error.config)) {
       // Dynamic import avoids a static circular import (useAuthStore imports this module for its API calls).
       const { default: useAuthStore } = await import('../store/useAuthStore')
       useAuthStore.getState().logout()
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

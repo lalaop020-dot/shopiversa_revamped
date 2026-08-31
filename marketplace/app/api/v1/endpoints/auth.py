@@ -100,8 +100,16 @@ async def register_seller(data: SellerRegisterIn, db: AsyncSession = Depends(get
     db.add(Subscription(seller_id=user.id, package_name=PackageName.Silver))
     await db.commit()
     await db.refresh(user)
-    token = create_token({"sub": str(user.id)})
-    return ok({"user": user_dict(user), "role": user.role.value, "token": token}, 201)
+    # No token issued yet — the shop is pending admin approval and the
+    # seller cannot log in until it's approved (see /auth/login below).
+    return ok({"user": user_dict(user), "role": user.role.value}, 201)
+
+
+SHOP_STATUS_MESSAGES = {
+    "pending": "Your shop application is pending admin approval. Please check back later.",
+    "rejected": "Your shop application was rejected. Please contact support.",
+    "suspended": "Your shop has been suspended. Please contact support.",
+}
 
 
 @router.post("/login")
@@ -112,6 +120,13 @@ async def login(data: LoginIn, db: AsyncSession = Depends(get_db)):
         return err("Invalid credentials", 401)
     if not user.is_active:
         return err("Account deactivated", 403)
+    if user.role == UserRole.seller and user.shop_status != ShopStatus.approved:
+        status = user.shop_status.value if user.shop_status else "pending"
+        return err(
+            SHOP_STATUS_MESSAGES.get(status, "Your shop is not yet approved."),
+            403,
+            shopStatus=status,
+        )
     token = create_token({"sub": str(user.id)})
     return ok({"user": user_dict(user), "role": user.role.value, "token": token})
 

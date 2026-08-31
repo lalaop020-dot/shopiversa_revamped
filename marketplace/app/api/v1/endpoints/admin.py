@@ -11,9 +11,10 @@ from typing import Optional
 from app.db.database import get_db
 from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, TxStatus,
                                 SellerBalance, PackageRequest, Subscription, PackageName, PackageStatus,
-                                Order, Notification, NotificationType, Product, AdminBankWithdrawal)
+                                Order, OrderStatus, Notification, NotificationType, Product, AdminBankWithdrawal)
 from app.core.deps import admin_only
 from app.core.response import ok, err
+from app.api.v1.endpoints.orders import order_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -93,6 +94,47 @@ async def dashboard_stats(admin: User = Depends(admin_only), db: AsyncSession = 
         "pendingDeposits": pending_deposits,
         "pendingWithdrawals": pending_withdrawals,
     })
+
+
+# ── Orders (cross-seller visibility) ──────────────
+
+@router.get("/orders")
+async def all_orders(
+    page: int = Query(1, ge=1), limit: int = Query(50, ge=1, le=200),
+    status: Optional[str] = Query(None),
+    admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+):
+    q = select(Order).options(selectinload(Order.items))
+    if status:
+        try:
+            q = q.where(Order.status == OrderStatus(status))
+        except ValueError:
+            return err("Invalid status", 400)
+
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
+    q = q.order_by(Order.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    orders = (await db.execute(q)).scalars().all()
+
+    # Order/OrderItem have no ORM relationship to User — batch-resolve seller
+    # shop names and customer emails for display in one extra query.
+    seller_ids = {i.seller_id for o in orders for i in o.items if i.seller_id}
+    customer_ids = {o.customer_id for o in orders if o.customer_id}
+    users_by_id = {}
+    if seller_ids | customer_ids:
+        result = await db.execute(select(User).where(User.id.in_(seller_ids | customer_ids)))
+        users_by_id = {u.id: u for u in result.scalars().all()}
+
+    def enrich(o: Order) -> dict:
+        d = order_dict(o)
+        customer = users_by_id.get(o.customer_id)
+        d["customerEmail"] = customer.email if customer else None
+        for item, oi in zip(d["items"], o.items):
+            seller = users_by_id.get(oi.seller_id)
+            item["sellerName"] = (seller.shop_name or seller.name) if seller else None
+            item["sellerEmail"] = seller.email if seller else None
+        return d
+
+    return ok({"orders": [enrich(o) for o in orders], "total": total})
 
 
 # ── Seller Approvals ───────────────────────────────

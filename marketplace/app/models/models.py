@@ -45,7 +45,15 @@ class TxStatus(str, enum.Enum):
 
 
 class OrderStatus(str, enum.Enum):
+    # Standard e-commerce fulfillment pipeline: Processing (just placed) ->
+    # Confirmed (seller accepted) -> Packed -> Shipped (in transit, shown to
+    # users as "Departed") -> Delivered (shown as "Received"). Cancelled can
+    # be reached from any non-terminal state. New members are appended only —
+    # Postgres enum values can't be renamed/removed without a destructive
+    # migration, see marketplace/migrate_order_status.py.
     Processing = "Processing"
+    Confirmed = "Confirmed"
+    Packed = "Packed"
     Shipped = "Shipped"
     Delivered = "Delivered"
     Cancelled = "Cancelled"

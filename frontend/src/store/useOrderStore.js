@@ -6,6 +6,9 @@ const useOrderStore = create(
   persist(
     (set) => ({
       orders: [],
+      // Kept separate from `orders` (seller/customer scoped) so the admin's
+      // cross-seller listing never clobbers or mixes with a seller's own cache.
+      adminOrders: [],
 
       createOrder: async (cartItems, shippingInfo, paymentMethod, paymentProof = {}) => {
         const items = cartItems.map(item => ({
@@ -34,7 +37,7 @@ const useOrderStore = create(
           const { data } = await api.get('/orders')
           set({ orders: data.data.orders })
           return data.data.orders
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
       fetchSellerOrders: async () => {
@@ -42,16 +45,26 @@ const useOrderStore = create(
           const { data } = await api.get('/orders/seller')
           set({ orders: data.data.orders })
           return data.data.orders
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
       updateOrderStatus: async (orderId, status) => {
+        const { data } = await api.put(`/orders/${orderId}/status`, { status })
+        set((state) => ({
+          orders: state.orders.map(o => o.id === orderId ? data.data.order : o),
+          adminOrders: state.adminOrders.map(o => o.id === orderId ? data.data.order : o),
+        }))
+        return data.data.order
+      },
+
+      // ── Admin: all orders across every seller ─────
+      fetchAdminOrders: async (status) => {
         try {
-          const { data } = await api.put(`/orders/${orderId}/status`, { status })
-          set((state) => ({
-            orders: state.orders.map(o => o.id === orderId ? data.data.order : o)
-          }))
-        } catch (e) { console.error(e) }
+          const url = status ? `/admin/orders?status=${encodeURIComponent(status)}` : '/admin/orders'
+          const { data } = await api.get(url)
+          set({ adminOrders: data.data.orders })
+          return data.data.orders
+        } catch { return [] }
       },
 
     }),
