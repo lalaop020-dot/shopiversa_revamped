@@ -1,51 +1,60 @@
 import { useState, useEffect } from 'react'
-import { Search, Filter, Warehouse, CheckCircle2 } from 'lucide-react'
+import { Search, Warehouse, CheckCircle2 } from 'lucide-react'
 import { ProductCard } from '../../components/ProductCard'
-import { Button } from '../../components/common/Button'
 import { Input } from '../../components/common/Input'
+import { Pagination } from '../../components/common/Pagination'
 import useAuthStore from '../../store/useAuthStore'
 import { useProductStore } from '../../store/useProductStore'
 import toast from 'react-hot-toast'
+
+const LIMIT = 24
 
 export default function ProductStorehouse() {
   const { user } = useAuthStore()
   const sellerEmail = user?.email || 'seller@demo.com'
 
   const storeroomProducts = useProductStore((state) => state.storeroomProducts)
-  const sellerProductsList = useProductStore((state) => state.sellerProducts[sellerEmail]) || []
+  const storeroomMeta = useProductStore((state) => state.storeroomMeta)
+  const importedIds = useProductStore((state) => state.sellerImportedIds[sellerEmail]) || []
   const importProduct = useProductStore((state) => state.importProductToSellerStore)
-  const fetchStoreroomProducts = useProductStore((state) => state.fetchStoreroomProducts)
-  const fetchSellerProducts = useProductStore((state) => state.fetchSellerProducts)
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [isImporting, setIsImporting] = useState(null)
 
+  // Debounce the search box so we don't fire a request per keystroke, and
+  // jump back to page 1 whenever the search term actually changes.
   useEffect(() => {
-    fetchStoreroomProducts()
-    fetchSellerProducts(sellerEmail)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerEmail])
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
-  const importedIds = sellerProductsList.map(p => p.globalId)
+  useEffect(() => {
+    const params = { page, limit: LIMIT }
+    if (debouncedSearch) params.search = debouncedSearch
+    useProductStore.getState().fetchStoreroomProducts(params)
+  }, [page, debouncedSearch])
+
+  useEffect(() => {
+    useProductStore.getState().fetchSellerImportedIds(sellerEmail)
+  }, [sellerEmail])
 
   const handleImport = async (product) => {
     setIsImporting(product.id)
     try {
-      // Small simulated latency for feel
-      await new Promise(resolve => setTimeout(resolve, 600))
-      importProduct(sellerEmail, product.id)
+      await importProduct(sellerEmail, product.id)
       toast.success(`${product.name} imported to your store!`)
+      useProductStore.getState().fetchSellerImportedIds(sellerEmail)
     } catch (error) {
-      toast.error('Failed to import product')
+      toast.error(error?.response?.data?.message || 'Failed to import product')
     } finally {
       setIsImporting(null)
     }
   }
-
-  const filteredProducts = storeroomProducts.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -60,8 +69,8 @@ export default function ProductStorehouse() {
 
       <div className="flex gap-4">
         <div className="relative flex-grow">
-          <Input 
-            placeholder="Search approved products by name or category..." 
+          <Input
+            placeholder="Search approved products by name or category..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -71,12 +80,12 @@ export default function ProductStorehouse() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map((product) => {
+        {storeroomProducts.map((product) => {
           const isAlreadyImported = importedIds.includes(product.id)
           return (
             <div key={product.id} className="relative group">
-              <ProductCard 
-                product={product} 
+              <ProductCard
+                product={product}
                 onImport={() => handleImport(product)}
                 isImported={isAlreadyImported}
                 isLoading={isImporting === product.id}
@@ -91,11 +100,19 @@ export default function ProductStorehouse() {
         })}
       </div>
 
-      {filteredProducts.length === 0 && (
+      {storeroomProducts.length === 0 && (
         <div className="text-center py-20 border-2 border-dashed border-dark-border rounded-xl">
           <div className="text-slate-500">No products found matching your search.</div>
         </div>
       )}
+
+      <Pagination
+        page={storeroomMeta.page}
+        pages={storeroomMeta.pages}
+        total={storeroomMeta.total}
+        limit={storeroomMeta.limit}
+        onPageChange={setPage}
+      />
     </div>
   )
 }

@@ -4,9 +4,12 @@ import api from '../api/axios'
 
 const useProductStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       storeroomProducts: [],
+      storeroomMeta: { total: 0, page: 1, limit: 20, pages: 1 },
       sellerProducts: {},
+      sellerProductsMeta: {},
+      sellerImportedIds: {},
       categories: [],
       marketplaceProducts: [],
       marketplaceMeta: { total: 0, page: 1, limit: 24, pages: 1 },
@@ -20,7 +23,7 @@ const useProductStore = create(
           const { products, total, page, limit, pages } = data.data
           set({ marketplaceProducts: products, marketplaceMeta: { total, page, limit, pages } })
           return products
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
       // Categories that actually have active, purchasable listings — with real counts.
@@ -30,7 +33,7 @@ const useProductStore = create(
           const categories = data.data.categories
           set({ publicCategories: categories })
           return categories
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
       // ── Storeroom (Admin) ────────────────────────
@@ -38,19 +41,21 @@ const useProductStore = create(
         try {
           const q = new URLSearchParams(params).toString()
           const { data } = await api.get(`/products${q ? '?' + q : ''}`)
-          const { products, categories } = data.data
-          set({ storeroomProducts: products, categories })
+          const { products, categories, total, page, limit, pages } = data.data
+          set({ storeroomProducts: products, categories, storeroomMeta: { total, page, limit, pages } })
           return products
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
+      // Add/remove change the total item count, which the currently-displayed
+      // page/total no longer reflects locally — callers should refetch the
+      // current page (fetchStoreroomProducts) after these resolve.
       addStoreroomProduct: async (product) => {
         const { data } = await api.post('/products', product)
-        const p = data.data.product
-        set((state) => ({ storeroomProducts: [p, ...state.storeroomProducts] }))
-        return p
+        return data.data.product
       },
 
+      // Editing doesn't change count/order, so it's safe to patch in place.
       editStoreroomProduct: async (id, updated) => {
         const { data } = await api.put(`/products/${id}`, updated)
         const p = data.data.product
@@ -62,13 +67,11 @@ const useProductStore = create(
 
       removeStoreroomProduct: async (id) => {
         await api.delete(`/products/${id}`)
-        set((state) => ({
-          storeroomProducts: state.storeroomProducts.filter(p => p.id !== id)
-        }))
       },
 
       // Returns { imported, failed, errors } on success, or { imported: 0, failed: 0, errors: [], parseError: '<message>' }
       // if the JSON itself was malformed (couldn't even reach the server).
+      // Changes the total item count — caller should refetch afterward.
       bulkUploadProducts: async (productsJson) => {
         let list
         try {
@@ -78,40 +81,43 @@ const useProductStore = create(
           return { imported: 0, failed: 0, errors: [], parseError: e.message }
         }
         const { data } = await api.post('/products/bulk', { products: list })
-        await get().fetchStoreroomProducts()
         return data.data
       },
 
       // ── Seller Products ──────────────────────────
-      fetchSellerProducts: async (email) => {
+      fetchSellerProducts: async (email, params = {}) => {
         try {
-          const { data } = await api.get('/seller/products')
-          const products = data.data.products
-          set((state) => ({ sellerProducts: { ...state.sellerProducts, [email]: products } }))
+          const q = new URLSearchParams(params).toString()
+          const { data } = await api.get(`/seller/products${q ? '?' + q : ''}`)
+          const { products, total, page, limit, pages } = data.data
+          set((state) => ({
+            sellerProducts: { ...state.sellerProducts, [email]: products },
+            sellerProductsMeta: { ...state.sellerProductsMeta, [email]: { total, page, limit, pages } },
+          }))
           return products
-        } catch (e) { return [] }
+        } catch { return [] }
       },
 
-      importProductToSellerStore: async (sellerEmail, globalId) => {
+      // Full (unpaginated) set of storeroom ids this seller already imported —
+      // for "already imported" badges while browsing the storeroom.
+      fetchSellerImportedIds: async (email) => {
         try {
-          const { data } = await api.post(`/seller/products/import/${globalId}`)
-          const p = data.data.product
-          set((state) => {
-            const current = state.sellerProducts[sellerEmail] || []
-            return { sellerProducts: { ...state.sellerProducts, [sellerEmail]: [p, ...current] } }
-          })
-          return p
-        } catch (e) {
-          throw e
-        }
+          const { data } = await api.get('/seller/products/imported-ids')
+          const globalIds = data.data.globalIds
+          set((state) => ({ sellerImportedIds: { ...state.sellerImportedIds, [email]: globalIds } }))
+          return globalIds
+        } catch { return [] }
+      },
+
+      // Import/remove change the seller's total item count — callers should
+      // refetch the current page (fetchSellerProducts) after these resolve.
+      importProductToSellerStore: async (sellerEmail, globalId) => {
+        const { data } = await api.post(`/seller/products/import/${globalId}`)
+        return data.data.product
       },
 
       removeSellerProduct: async (sellerEmail, id) => {
         await api.delete(`/seller/products/${id}`)
-        set((state) => {
-          const current = state.sellerProducts[sellerEmail] || []
-          return { sellerProducts: { ...state.sellerProducts, [sellerEmail]: current.filter(p => p.id !== id) } }
-        })
       },
 
       updateSellerProduct: async (sellerEmail, id, updates) => {

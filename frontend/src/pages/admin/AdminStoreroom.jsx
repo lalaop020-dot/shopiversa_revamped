@@ -3,24 +3,47 @@ import { Plus, Trash2, Edit2, Download, Search, AlertTriangle, FileJson, CheckCi
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import { Input } from '../../components/common/Input'
+import { Pagination } from '../../components/common/Pagination'
 import { useProductStore } from '../../store/useProductStore'
 import { formatCurrency } from '../../utils/formatters'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 
+const LIMIT = 20
+
 export default function AdminStoreroom() {
   const storeroomProducts = useProductStore((state) => state.storeroomProducts)
+  const storeroomMeta = useProductStore((state) => state.storeroomMeta)
   const addStoreroomProduct = useProductStore((state) => state.addStoreroomProduct)
   const editStoreroomProduct = useProductStore((state) => state.editStoreroomProduct)
   const removeStoreroomProduct = useProductStore((state) => state.removeStoreroomProduct)
-  
+
   const bulkUploadProducts = useProductStore((state) => state.bulkUploadProducts)
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
+
+  // Debounce the search box so we don't fire a request per keystroke, and
+  // jump back to page 1 whenever the search term actually changes.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const load = (targetPage = page) => {
+    const params = { page: targetPage, limit: LIMIT }
+    if (debouncedSearch) params.search = debouncedSearch
+    return useProductStore.getState().fetchStoreroomProducts(params)
+  }
 
   useEffect(() => {
-    useProductStore.getState().fetchStoreroomProducts()
-  }, [])
+    load(page)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch])
 
   // Modals state
   const [productModalOpen, setProductModalOpen] = useState(false)
@@ -60,7 +83,7 @@ export default function AdminStoreroom() {
     setProductModalOpen(true)
   }
 
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault()
     if (!name || !price || !category || !stock) {
       toast.error('Please fill in required fields')
@@ -81,21 +104,24 @@ export default function AdminStoreroom() {
     }
 
     if (editingProduct) {
-      editStoreroomProduct(editingProduct.id, payload)
+      await editStoreroomProduct(editingProduct.id, payload)
       toast.success('Product updated in global storeroom!')
     } else {
-      addStoreroomProduct(payload)
+      await addStoreroomProduct(payload)
       toast.success('New product registered in global storeroom!')
+      // A new product lands on page 1 (newest-first sort) — jump there so it's visible.
+      if (page === 1) load(1); else setPage(1)
     }
 
     setProductModalOpen(false)
   }
 
-  const handleDelete = (id, prodName) => {
-    if (window.confirm(`WARNING: Deleting "${prodName}" will delete it from all active seller storefronts. Continue?`)) {
-      removeStoreroomProduct(id)
-      toast.success(`Removed "${prodName}" and cleared from seller inventories.`)
-    }
+  const handleDelete = async (id, prodName) => {
+    if (!window.confirm(`WARNING: Deleting "${prodName}" will delete it from all active seller storefronts. Continue?`)) return
+    await removeStoreroomProduct(id)
+    toast.success(`Removed "${prodName}" and cleared from seller inventories.`)
+    // If that was the last item on this page, step back a page; otherwise refresh it.
+    if (storeroomProducts.length === 1 && page > 1) setPage(page - 1); else load(page)
   }
 
   const handleBulkSubmit = async (e) => {
@@ -123,13 +149,12 @@ export default function AdminStoreroom() {
     if (result.imported > 0) {
       setBulkJson('')
       setBulkModalOpen(false)
+      setSearchTerm('')
+      setDebouncedSearch('')
+      // Newly imported products land on page 1 (newest-first sort).
+      if (page === 1) load(1); else setPage(1)
     }
   }
-
-  const filtered = storeroomProducts.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   const sampleJson = JSON.stringify([
     {
@@ -184,7 +209,7 @@ export default function AdminStoreroom() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border">
-              {filtered.map((product) => (
+              {storeroomProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4 font-mono text-sm">{product.id}</td>
                   <td className="px-6 py-4">
@@ -218,7 +243,7 @@ export default function AdminStoreroom() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {storeroomProducts.length === 0 && (
                 <tr>
                   <td colSpan="5" className="text-center py-10 text-slate-500">
                     No products currently available in the storeroom.
@@ -229,6 +254,14 @@ export default function AdminStoreroom() {
           </table>
         </div>
       </Card>
+
+      <Pagination
+        page={storeroomMeta.page}
+        pages={storeroomMeta.pages}
+        total={storeroomMeta.total}
+        limit={storeroomMeta.limit}
+        onPageChange={setPage}
+      />
 
       {/* Manual Product Add/Edit Modal */}
       {productModalOpen && (

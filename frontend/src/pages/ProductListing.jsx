@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Filter, LayoutGrid, List, ShoppingBag, X } from 'lucide-react'
 import { ProductCard } from '../components/ProductCard'
 import { Button } from '../components/common/Button'
 import { Input } from '../components/common/Input'
+import { Pagination } from '../components/common/Pagination'
 import { useProductStore } from '../store/useProductStore'
 
 const MAX_PRICE = 5000
+const LIMIT = 24
 
 const SORT_OPTIONS = [
   { value: 'popularity', label: 'Popularity' },
@@ -21,38 +23,56 @@ export default function ProductListing() {
   const [searchParams] = useSearchParams()
   const [view, setView] = useState('grid')
   const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm)
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE)
   const [sortBy, setSortBy] = useState('popularity')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
   const activeProducts = useProductStore((state) => state.marketplaceProducts)
-  const fetchMarketplaceProducts = useProductStore((state) => state.fetchMarketplaceProducts)
+  const marketplaceMeta = useProductStore((state) => state.marketplaceMeta)
   const publicCategories = useProductStore((state) => state.publicCategories)
   const fetchPublicCategories = useProductStore((state) => state.fetchPublicCategories)
 
+  // Debounce the search box so we don't fire a request per keystroke, and
+  // jump back to page 1 whenever the search term actually changes.
   useEffect(() => {
-    fetchMarketplaceProducts({ limit: 100 })
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Category (route param) also resets to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => setPage(1), 0)
+    return () => clearTimeout(t)
+  }, [slug])
+
+  useEffect(() => {
+    const params = { page, limit: LIMIT }
+    if (debouncedSearch) params.search = debouncedSearch
+    if (slug && slug !== 'all') params.category = slug
+    useProductStore.getState().fetchMarketplaceProducts(params)
+  }, [page, debouncedSearch, slug])
+
+  useEffect(() => {
     fetchPublicCategories()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Compute counts for each category
+  // Real counts per category come from the backend (independent of whatever
+  // page is currently loaded) — "All" uses the current query's total.
   const getCategoryCount = (catName) => {
-    if (catName === 'All') return activeProducts.length
-    return activeProducts.filter(p => p.category.toLowerCase() === catName.toLowerCase()).length
+    if (catName === 'All') return marketplaceMeta.total
+    return publicCategories.find(c => c.name.toLowerCase() === catName.toLowerCase())?.count ?? 0
   }
 
-  // Filter products by selected category slug, search term, and price range
-  const filteredProducts = activeProducts.filter((product) => {
-    const matchesCategory = !slug || slug === 'all' || product.category.toLowerCase() === slug.toLowerCase()
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          product.category.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesPrice = product.price <= maxPrice
-    return matchesCategory && matchesSearch && matchesPrice
-  })
-
-  // /marketplace/products already returns newest-first, so 'newest' is a no-op sort
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
+  // Price range and sort apply to the current page only — the server already
+  // handles category/search filtering and pagination.
+  const visibleProducts = activeProducts.filter((product) => product.price <= maxPrice)
+  const sortedProducts = [...visibleProducts].sort((a, b) => {
     if (sortBy === 'price-asc') return a.price - b.price
     if (sortBy === 'price-desc') return b.price - a.price
     if (sortBy === 'popularity') return (b.sales || 0) - (a.sales || 0)
@@ -110,7 +130,7 @@ export default function ProductListing() {
           <h1 className="text-3xl font-bold mb-2 capitalize flex items-center gap-2">
             <ShoppingBag className="w-8 h-8 text-primary" /> {slug ? slug : 'Marketplace'}
           </h1>
-          <p className="text-slate-400">Showing {sortedProducts.length} approved system products</p>
+          <p className="text-slate-400">Showing {sortedProducts.length} of {marketplaceMeta.total} approved system products</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <button
@@ -195,6 +215,14 @@ export default function ProductListing() {
               No approved products available in this section.
             </div>
           )}
+
+          <Pagination
+            page={marketplaceMeta.page}
+            pages={marketplaceMeta.pages}
+            total={marketplaceMeta.total}
+            limit={marketplaceMeta.limit}
+            onPageChange={setPage}
+          />
         </div>
       </div>
     </div>

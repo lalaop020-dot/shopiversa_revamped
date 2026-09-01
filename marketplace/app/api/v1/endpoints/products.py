@@ -111,7 +111,12 @@ async def list_products(
     items = (await db.execute(q)).scalars().all()
     cats_q = select(distinct(Product.category)).where(Product.is_available == True, Product.category.isnot(None))
     cats = [r[0] for r in (await db.execute(cats_q)).all()]
-    return ok({"products": [product_dict(p) for p in items], "total": total, "categories": cats})
+    pages = max(1, (total + limit - 1) // limit)
+    return ok({
+        "products": [product_dict(p) for p in items],
+        "total": total, "page": page, "limit": limit, "pages": pages,
+        "categories": cats,
+    })
 
 
 @router.get("/products/categories")
@@ -237,13 +242,36 @@ async def bulk_upload(data: dict, admin: User = Depends(admin_only),
 # ── SELLER PRODUCTS ────────────────────────────────
 
 @router.get("/seller/products")
-async def my_products(user: User = Depends(seller_only), db: AsyncSession = Depends(get_db)):
+async def my_products(
+    search: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    user: User = Depends(seller_only), db: AsyncSession = Depends(get_db),
+):
     from sqlalchemy.orm import selectinload
     q = select(SellerProduct).options(
         selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller)
     ).where(SellerProduct.seller_id == user.id)
+    if search:
+        q = q.join(Product, SellerProduct.global_id == Product.id).where(Product.name.ilike(f"%{search}%"))
+    count_q = select(func.count()).select_from(q.subquery())
+    total = (await db.execute(count_q)).scalar()
+    q = q.order_by(SellerProduct.id.desc()).offset((page - 1) * limit).limit(limit)
     items = (await db.execute(q)).scalars().all()
-    return ok({"products": [seller_product_dict(sp) for sp in items]})
+    pages = max(1, (total + limit - 1) // limit)
+    return ok({
+        "products": [seller_product_dict(sp) for sp in items],
+        "total": total, "page": page, "limit": limit, "pages": pages,
+    })
+
+
+@router.get("/seller/products/imported-ids")
+async def my_imported_ids(user: User = Depends(seller_only), db: AsyncSession = Depends(get_db)):
+    """Lightweight full set of storeroom product ids this seller has already
+    imported — used to render "already imported" badges while browsing the
+    (paginated) storeroom, without needing every page of /seller/products."""
+    result = await db.execute(select(SellerProduct.global_id).where(SellerProduct.seller_id == user.id))
+    return ok({"globalIds": [r[0] for r in result.all()]})
 
 
 @router.post("/seller/products/import/{global_id}")

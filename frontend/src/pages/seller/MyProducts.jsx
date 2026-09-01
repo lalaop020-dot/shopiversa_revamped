@@ -4,11 +4,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../../components/common/Button'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
+import { Pagination } from '../../components/common/Pagination'
 import { formatCurrency } from '../../utils/formatters'
 import useAuthStore from '../../store/useAuthStore'
 import { useProductStore } from '../../store/useProductStore'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
+
+const LIMIT = 20
 
 export default function MyProducts() {
   const navigate = useNavigate()
@@ -16,27 +19,47 @@ export default function MyProducts() {
   const sellerEmail = user?.email || 'seller@demo.com'
 
   const sellerProducts = useProductStore((state) => state.sellerProducts[sellerEmail]) || []
+  const sellerProductsMeta = useProductStore((state) => state.sellerProductsMeta[sellerEmail]) ||
+    { total: 0, page: 1, limit: LIMIT, pages: 1 }
   const removeSellerProduct = useProductStore((state) => state.removeSellerProduct)
   const updateSellerProduct = useProductStore((state) => state.updateSellerProduct)
-  const fetchSellerProducts = useProductStore((state) => state.fetchSellerProducts)
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [editingProduct, setEditingProduct] = useState(null)
 
+  // Debounce the search box so we don't fire a request per keystroke, and
+  // jump back to page 1 whenever the search term actually changes.
   useEffect(() => {
-    fetchSellerProducts(sellerEmail)
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const load = (targetPage = page) => {
+    const params = { page: targetPage, limit: LIMIT }
+    if (debouncedSearch) params.search = debouncedSearch
+    return useProductStore.getState().fetchSellerProducts(sellerEmail, params)
+  }
+
+  useEffect(() => {
+    load(page)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sellerEmail])
-  
+  }, [sellerEmail, page, debouncedSearch])
+
   // Edit Form States
   const [editPrice, setEditPrice] = useState('')
   const [editStock, setEditStock] = useState('')
 
-  const handleDelete = (id, name) => {
-    if (window.confirm(`Are you sure you want to remove ${name} from your store?`)) {
-      removeSellerProduct(sellerEmail, id)
-      toast.success(`${name} removed from your storefront`)
-    }
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to remove ${name} from your store?`)) return
+    await removeSellerProduct(sellerEmail, id)
+    toast.success(`${name} removed from your storefront`)
+    // If that was the last item on this page, step back a page; otherwise refresh it.
+    if (sellerProducts.length === 1 && page > 1) setPage(page - 1); else load(page)
   }
 
   const handleEditClick = (product) => {
@@ -65,11 +88,6 @@ export default function MyProducts() {
     toast.success('Product configurations updated successfully!')
     setEditingProduct(null)
   }
-
-  const filteredProducts = sellerProducts.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  )
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -109,7 +127,7 @@ export default function MyProducts() {
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border">
-              {filteredProducts.map((product) => (
+              {sellerProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -157,7 +175,7 @@ export default function MyProducts() {
                   </td>
                 </tr>
               ))}
-              {filteredProducts.length === 0 && (
+              {sellerProducts.length === 0 && (
                 <tr>
                   <td colSpan="6" className="text-center py-10 text-slate-500">
                     You have not imported any products yet. Go to the Storeroom to select items.
@@ -168,6 +186,14 @@ export default function MyProducts() {
           </table>
         </div>
       </Card>
+
+      <Pagination
+        page={sellerProductsMeta.page}
+        pages={sellerProductsMeta.pages}
+        total={sellerProductsMeta.total}
+        limit={sellerProductsMeta.limit}
+        onPageChange={setPage}
+      />
 
       {/* Edit stock and price modal */}
       {editingProduct && (
