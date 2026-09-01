@@ -20,6 +20,7 @@ import {
 import { Button } from '../components/common/Button'
 import useAuthStore from '../store/useAuthStore'
 import useNotificationStore from '../store/useNotificationStore'
+import useChatStore from '../store/useChatStore'
 import { ChatWindow } from '../components/ChatWindow'
 import { NotificationCenter } from '../components/NotificationCenter'
 
@@ -27,6 +28,7 @@ export default function DashboardLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [supportContact, setSupportContact] = useState(null)
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -35,10 +37,18 @@ export default function DashboardLayout() {
   const user = useAuthStore((state) => state.user)
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const fetchNotifications = useNotificationStore((state) => state.fetchNotifications)
+  const fetchConversations = useChatStore((state) => state.fetchConversations)
 
   useEffect(() => {
     fetchNotifications()
   }, [fetchNotifications])
+
+  const openSupportChat = async () => {
+    const convs = await fetchConversations()
+    const admin = convs.find((c) => c.role === 'admin') || convs[0] || null
+    setSupportContact(admin)
+    setIsChatOpen(true)
+  }
 
   // Close the mobile drawer whenever the route changes (e.g. after clicking a nav link)
   useEffect(() => {
@@ -189,7 +199,7 @@ export default function DashboardLayout() {
       {/* Floating Chat Toggle */}
       {role !== 'admin' && !isChatOpen && (
         <button
-          onClick={() => setIsChatOpen(true)}
+          onClick={openSupportChat}
           className="fixed bottom-6 right-6 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-all z-50 group"
         >
           <MessageSquare className="w-6 h-6" />
@@ -202,10 +212,11 @@ export default function DashboardLayout() {
 
       {/* Chat Window */}
       <AnimatePresence>
-        {isChatOpen && (
-          <ChatWindow 
-            recipient="Admin Support" 
-            onClose={() => setIsChatOpen(false)} 
+        {isChatOpen && supportContact && (
+          <ChatWindow
+            recipientEmail={supportContact.email}
+            recipientName={supportContact.name || 'Support'}
+            onClose={() => setIsChatOpen(false)}
           />
         )}
       </AnimatePresence>

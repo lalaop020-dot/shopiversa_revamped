@@ -103,10 +103,13 @@ async def my_package_requests(user: User = Depends(seller_only), db: AsyncSessio
 
 
 # ── Chat ───────────────────────────────────────────
+# Three conversation shapes are allowed: customer<->seller, seller<->admin,
+# customer<->admin. Any two same-role users (seller<->seller etc.) are not.
 
 def msg_dict(m: ChatMessage) -> dict:
     return {
         "id": m.id, "text": m.text,
+        "senderId": m.sender_id,
         "sender": m.sender_role,
         "time": m.created_at.strftime("%I:%M %p"),
         "createdAt": m.created_at.isoformat(),
@@ -115,55 +118,43 @@ def msg_dict(m: ChatMessage) -> dict:
 
 @router.get("/chat/conversations")
 async def get_conversations(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
-    # Get all unique partners
-    if user.role == UserRole.admin:
-        # Admin sees all conversations — get all unique sender IDs
-        result = await db.execute(
-            select(ChatMessage).options(selectinload(ChatMessage.sender))
-            .order_by(ChatMessage.created_at.desc()).limit(2000)
-        )
-        msgs = result.scalars().all()
-        seen = {}
-        for m in msgs:
-            partner_id = m.sender_id if m.receiver_id == user.id else m.receiver_id
-            if partner_id not in seen:
-                seen[partner_id] = m
-        convs = []
-        for pid, last_msg in seen.items():
-            partner_result = await db.execute(select(User).where(User.id == pid))
-            partner = partner_result.scalar_one_or_none()
-            if partner:
-                convs.append({
-                    "email": partner.email,
-                    "name": partner.name,
-                    "lastMessage": last_msg.text,
-                    "time": last_msg.created_at.strftime("%I:%M %p"),
-                    "unreadCount": 0,
-                    "isBotMode": False,
-                })
-    else:
-        # Find admin user
+    result = await db.execute(
+        select(ChatMessage).where(
+            or_(ChatMessage.sender_id == user.id, ChatMessage.receiver_id == user.id)
+        ).order_by(ChatMessage.created_at.desc()).limit(2000)
+    )
+    msgs = result.scalars().all()
+    seen = {}
+    for m in msgs:
+        partner_id = m.sender_id if m.receiver_id == user.id else m.receiver_id
+        if partner_id not in seen:
+            seen[partner_id] = m
+
+    convs = []
+    for pid, last_msg in seen.items():
+        partner_result = await db.execute(select(User).where(User.id == pid))
+        partner = partner_result.scalar_one_or_none()
+        if partner:
+            convs.append({
+                "email": partner.email,
+                "name": partner.shop_name if partner.role == UserRole.seller else partner.name,
+                "role": partner.role.value,
+                "lastMessage": last_msg.text,
+                "time": last_msg.created_at.strftime("%I:%M %p"),
+            })
+
+    # Sellers/customers should always have a way to reach support, even
+    # before their first message — surface a placeholder if there's no real
+    # admin conversation yet.
+    if user.role != UserRole.admin and not any(c["role"] == "admin" for c in convs):
         admin_result = await db.execute(select(User).where(User.role == UserRole.admin).limit(1))
         admin = admin_result.scalar_one_or_none()
-        convs = []
         if admin:
-            last_msg_result = await db.execute(
-                select(ChatMessage).where(
-                    or_(
-                        and_(ChatMessage.sender_id == user.id, ChatMessage.receiver_id == admin.id),
-                        and_(ChatMessage.sender_id == admin.id, ChatMessage.receiver_id == user.id),
-                    )
-                ).order_by(ChatMessage.created_at.desc()).limit(1)
-            )
-            last_msg = last_msg_result.scalar_one_or_none()
-            convs.append({
-                "email": admin.email,
-                "name": "Support",
-                "lastMessage": last_msg.text if last_msg else "Hello! How can we help?",
-                "time": last_msg.created_at.strftime("%I:%M %p") if last_msg else "",
-                "unreadCount": 0,
-                "isBotMode": False,
+            convs.insert(0, {
+                "email": admin.email, "name": "Support", "role": "admin",
+                "lastMessage": "Hello! How can we help?", "time": "",
             })
+
     return ok({"conversations": convs})
 
 
@@ -199,16 +190,23 @@ async def send_message(data: SendMessageIn, user: User = Depends(current_user),
     partner = partner_result.scalar_one_or_none()
     if not partner:
         return err("Recipient not found", 404)
+    if partner.id == user.id:
+        return err("You can't message yourself", 400)
 
-    # Chat is support-only: one side of every conversation must be an admin
-    if user.role != UserRole.admin and partner.role != UserRole.admin:
-        return err("You can only message support", 403)
+    # Allowed pairings: customer<->seller, seller<->admin, customer<->admin.
+    allowed = (
+        user.role == UserRole.admin or partner.role == UserRole.admin or
+        (user.role == UserRole.customer and partner.role == UserRole.seller) or
+        (user.role == UserRole.seller and partner.role == UserRole.customer)
+    )
+    if not allowed:
+        return err("You can only message support or a shop/customer you're dealing with", 403)
 
     msg = ChatMessage(
         sender_id=user.id,
         receiver_id=partner.id,
         text=data.text,
-        sender_role="admin" if user.role == UserRole.admin else "user",
+        sender_role=user.role.value,
     )
     db.add(msg)
     await db.commit()

@@ -63,6 +63,7 @@ def product_dict(p: Product) -> dict:
 
 def seller_product_dict(sp: SellerProduct) -> dict:
     gp = sp.global_product
+    seller = sp.seller
     return {
         "id": sp.id, "globalId": sp.global_id,
         "name": gp.name if gp else "",
@@ -71,7 +72,10 @@ def seller_product_dict(sp: SellerProduct) -> dict:
         "image": gp.image if gp else None,
         "description": gp.description if gp else None,
         "category": gp.category if gp else None,
-        "sellerEmail": sp.seller.email if sp.seller else None,
+        "sellerId": seller.id if seller else None,
+        "sellerEmail": seller.email if seller else None,
+        "shopName": seller.shop_name if seller else None,
+        "shopDesc": seller.shop_desc if seller else None,
     }
 
 

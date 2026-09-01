@@ -1,4 +1,4 @@
-import { ShoppingCart, Plus, Eye } from 'lucide-react'
+import { ShoppingCart, Plus, Eye, Store } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from './common/Button'
 import { Card } from './common/Card'
@@ -42,7 +42,12 @@ export function ProductCard({ product, onImport, isImported, showCartAction = fa
         </div>
         <div className="p-4">
           <div className="text-xs text-primary font-bold uppercase mb-1">{product.category}</div>
-          <h3 className="font-bold truncate mb-2">{product.name}</h3>
+          <h3 className="font-bold truncate mb-1">{product.name}</h3>
+          {product.shopName && (
+            <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate mb-2">
+              <Store className="w-3 h-3 shrink-0" /> {product.shopName}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-xl font-bold text-white">${typeof product.price === 'number' ? product.price.toFixed(2) : product.price}</span>
             <span className="text-xs text-slate-500">Stock: {product.stock}</span>

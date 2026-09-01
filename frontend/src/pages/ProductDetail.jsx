@@ -1,21 +1,28 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ShoppingCart, Heart, ShieldCheck, Truck, Plus, Minus, AlertCircle } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { ShoppingCart, Heart, ShieldCheck, Truck, Plus, Minus, AlertCircle, Store, MessageSquare, Mail } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
 import { Button } from '../components/common/Button'
 import { Card } from '../components/common/Card'
+import { ChatWindow } from '../components/ChatWindow'
 import { useProductStore } from './../store/useProductStore'
 import useCartStore from '../store/useCartStore'
+import useAuthStore from '../store/useAuthStore'
 import toast from 'react-hot-toast'
 
 export default function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [quantity, setQuantity] = useState(1)
+  const [activeTab, setActiveTab] = useState('description')
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   const marketplaceProducts = useProductStore((state) => state.marketplaceProducts)
   const fetchMarketplaceProducts = useProductStore((state) => state.fetchMarketplaceProducts)
   const product = marketplaceProducts.find(p => String(p.id) === id)
+
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const role = useAuthStore((state) => state.role)
 
   useEffect(() => {
     fetchMarketplaceProducts()
@@ -23,6 +30,19 @@ export default function ProductDetail() {
   }, [])
 
   const addItem = useCartStore((state) => state.addItem)
+
+  const handleChatWithSeller = () => {
+    if (!isAuthenticated) {
+      toast.error('Please log in to chat with the seller')
+      navigate('/login')
+      return
+    }
+    if (role !== 'customer') {
+      toast.error('Only customer accounts can message a seller')
+      return
+    }
+    setIsChatOpen(true)
+  }
 
   const handleAddToCart = () => {
     if (!product) return
@@ -135,11 +155,26 @@ export default function ProductDetail() {
       {/* Tabs / More Info */}
       <section className="pt-12 border-t border-dark-border">
         <div className="flex gap-12 border-b border-dark-border mb-8">
-          <button className="pb-4 border-b-2 border-primary font-bold">Description</button>
-          <button className="pb-4 text-slate-500 hover:text-white transition-colors">Specifications</button>
+          <button
+            onClick={() => setActiveTab('description')}
+            className={`pb-4 font-bold transition-colors ${
+              activeTab === 'description' ? 'border-b-2 border-primary' : 'text-slate-500 hover:text-white'
+            }`}
+          >
+            Description
+          </button>
+          <button
+            onClick={() => setActiveTab('seller')}
+            className={`pb-4 font-bold transition-colors ${
+              activeTab === 'seller' ? 'border-b-2 border-primary' : 'text-slate-500 hover:text-white'
+            }`}
+          >
+            Seller
+          </button>
         </div>
-        <div className="grid md:grid-cols-3 gap-12">
-          <div className="md:col-span-2 space-y-6 text-slate-400">
+
+        {activeTab === 'description' && (
+          <div className="text-slate-400 space-y-6 max-w-3xl">
             <p>{product.description || `Aerospace-grade durability and state-of-the-art configuration make this product a premier choice for customers seeking excellence.`}</p>
             <ul className="space-y-3 list-disc pl-5">
               <li>Category: {product.category}</li>
@@ -147,20 +182,47 @@ export default function ProductDetail() {
               <li>Fulfillment: Verified Shopiversa Logistic Partners</li>
             </ul>
           </div>
-          <div className="space-y-6">
-            <h4 className="text-xl font-bold">Seller Information</h4>
-            <Card className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
-                <ShieldCheck className="text-primary w-6 h-6" />
+        )}
+
+        {activeTab === 'seller' && (
+          <Card className="max-w-2xl">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 bg-primary/20 rounded-full flex items-center justify-center shrink-0">
+                <Store className="text-primary w-7 h-7" />
               </div>
-              <div>
-                <div className="font-bold">{product.sellerEmail || 'Unknown Seller'}</div>
-                <div className="text-xs text-slate-400">Verified Shopiversa Seller</div>
+              <div className="flex-grow space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="font-bold text-lg">{product.shopName || 'Unknown Shop'}</div>
+                  <span className="flex items-center gap-1 text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full font-bold uppercase">
+                    <ShieldCheck className="w-3 h-3" /> Verified Seller
+                  </span>
+                </div>
+                {product.shopDesc && <p className="text-sm text-slate-400">{product.shopDesc}</p>}
+                {product.sellerEmail && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 pt-1">
+                    <Mail className="w-3.5 h-3.5" /> {product.sellerEmail}
+                  </div>
+                )}
               </div>
-            </Card>
-          </div>
-        </div>
+            </div>
+            {product.sellerEmail && (
+              <Button variant="outline" className="w-full mt-6 gap-2" onClick={handleChatWithSeller}>
+                <MessageSquare className="w-4 h-4" /> Chat with Seller
+              </Button>
+            )}
+          </Card>
+        )}
       </section>
+
+      <AnimatePresence>
+        {isChatOpen && product.sellerEmail && (
+          <ChatWindow
+            recipientEmail={product.sellerEmail}
+            recipientName={product.shopName || product.sellerEmail}
+            onClose={() => setIsChatOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -49,7 +49,7 @@ const useAuthStore = create(
         // doesn't inherit the previous user's cart/orders/chats/balances.
         useCartStore.getState().clearCart()
         useOrderStore.setState({ orders: [] })
-        useChatStore.setState({ conversations: {}, botStatus: {} })
+        useChatStore.setState({ conversations: {}, conversationsList: [] })
         usePlatformStore.setState({
           balances: {}, transactions: [], sellerSubscriptions: {}, packageRequests: [],
           adminSubscriptions: [], adminTotalWithdrawn: 0, adminBankWithdrawals: [], adminDashboardStats: null,
