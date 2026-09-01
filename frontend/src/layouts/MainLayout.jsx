@@ -25,9 +25,8 @@ export default function MainLayout() {
           <div>
             <h4 className="font-bold mb-4">Customer Care</h4>
             <ul className="space-y-2 text-slate-400">
-              <li><a href="#" className="hover:text-primary transition-colors">Contact Us</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">Returns</a></li>
-              <li><a href="#" className="hover:text-primary transition-colors">FAQs</a></li>
+              <li><Link to="/contact" className="hover:text-primary transition-colors">Contact Us</Link></li>
+              <li><Link to="/faq" className="hover:text-primary transition-colors">FAQs</Link></li>
             </ul>
           </div>
         </div>

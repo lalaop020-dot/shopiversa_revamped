@@ -1,6 +1,6 @@
 import random, string
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import selectinload
@@ -9,8 +9,8 @@ from decimal import Decimal
 
 from app.db.database import get_db
 from app.models.models import (PackageRequest, Subscription, PackageName, TxStatus,
-                                ChatMessage, Notification, SupportTicket, TicketPriority,
-                                TicketStatus, User, UserRole)
+                                ChatMessage, Notification, NotificationType, SupportTicket,
+                                TicketPriority, TicketStatus, ContactMessage, User, UserRole)
 from app.core.deps import current_user, seller_only
 from app.core.response import ok, err
 
@@ -309,3 +309,39 @@ async def my_tickets(user: User = Depends(current_user), db: AsyncSession = Depe
          "createdAt": t.created_at.isoformat()}
         for t in tickets
     ]})
+
+
+# ── Public Contact Form ────────────────────────────
+
+class ContactIn(BaseModel):
+    name: str
+    email: EmailStr
+    subject: Optional[str] = None
+    message: str
+
+
+@router.post("/contact")
+async def submit_contact(data: ContactIn, db: AsyncSession = Depends(get_db)):
+    """No auth required — this is the public Contact Us form."""
+    if not data.name.strip() or not data.message.strip():
+        return err("Name and message are required", 400)
+
+    msg = ContactMessage(
+        name=data.name.strip(), email=data.email,
+        subject=(data.subject or "").strip() or None,
+        message=data.message.strip(),
+    )
+    db.add(msg)
+    await db.flush()
+
+    admins = (await db.execute(select(User).where(User.role == UserRole.admin))).scalars().all()
+    preview = (data.subject or data.message)[:80]
+    for admin in admins:
+        db.add(Notification(
+            user_id=admin.id, title="New Contact Message",
+            message=f"{data.name} ({data.email}): {preview}",
+            type=NotificationType.info,
+        ))
+
+    await db.commit()
+    return ok({"success": True}, 201)

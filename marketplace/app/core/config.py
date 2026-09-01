@@ -1,6 +1,6 @@
+import json
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
-from typing import List
 
 
 class Settings(BaseSettings):
@@ -10,11 +10,29 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     APP_NAME: str = "Shopvirsa"
     DEBUG: bool = True
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:4173"]
+    # Plain string, NOT List[str]: pydantic-settings requires JSON-array
+    # syntax for env vars typed as a list and hard-crashes the app on startup
+    # otherwise (e.g. ALLOWED_ORIGINS=https://example.com without brackets/
+    # quotes) — a host UI where you'd naturally paste a bare URL. Comma-
+    # separated, a single origin, or a JSON array are all accepted below.
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:4173"
     UPLOAD_DIR: str = "uploads"
 
     class Config:
         env_file = ".env"
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        raw = self.ALLOWED_ORIGINS.strip()
+        if raw.startswith("["):
+            try:
+                items = json.loads(raw)
+            except json.JSONDecodeError:
+                items = [raw]
+        else:
+            items = raw.split(",")
+        # Origins never include a trailing slash — strip one if pasted in.
+        return [o.strip().rstrip("/") for o in items if o.strip()]
 
     @field_validator("DATABASE_URL")
     @classmethod

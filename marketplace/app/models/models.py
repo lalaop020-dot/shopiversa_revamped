@@ -300,3 +300,15 @@ class SupportTicket(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     seller = relationship("User", back_populates="support_tickets")
+
+
+# ── Public Contact Form ──────────────────────────────
+class ContactMessage(Base):
+    """Submissions from the public /contact page — no account required."""
+    __tablename__ = "contact_messages"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)
+    email = Column(String(255), nullable=False)
+    subject = Column(String(255), nullable=True)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

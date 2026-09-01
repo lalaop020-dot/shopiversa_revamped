@@ -30,6 +30,8 @@ import SellerApprovals from './pages/admin/SellerApprovals'
 import AdminOrders from './pages/admin/AdminOrders'
 import CustomerProfile from './pages/CustomerProfile'
 import NotificationsPage from './pages/NotificationsPage'
+import Contact from './pages/Contact'
+import Faq from './pages/Faq'
 import AdminTransactions from './pages/admin/AdminTransactions'
 import AdminPackages from './pages/admin/AdminPackages'
 import AdminSupport from './pages/admin/AdminSupport'
@@ -52,6 +54,8 @@ function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/profile" element={<CustomerProfile />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/faq" element={<Faq />} />
           </Route>
 
           {/* Auth Routes */}
