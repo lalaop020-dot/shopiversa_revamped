@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import api from '../api/axios'
 
+// Shared reference so `getMessages` doesn't hand back a fresh [] on every
+// call when there's no history yet — a new array each render makes Zustand
+// think the selector's output changed, causing an infinite render loop
+// (React error #185) the first time a conversation with no messages opens.
+const EMPTY_MESSAGES = []
+
 const useChatStore = create(
   persist(
     (set, get) => ({
@@ -28,7 +34,7 @@ const useChatStore = create(
 
       getMessages: (email) => {
         const msgs = (get().conversations || {})[email]
-        return Array.isArray(msgs) ? msgs : []
+        return Array.isArray(msgs) ? msgs : EMPTY_MESSAGES
       },
 
       sendMessage: async (email, text) => {
