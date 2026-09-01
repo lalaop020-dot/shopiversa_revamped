@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -14,6 +15,19 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _use_async_driver(cls, v: str) -> str:
+        # Hosts (Railway, Heroku, etc.) commonly hand out a plain
+        # postgres://.../postgresql://... URL, which SQLAlchemy loads with
+        # the sync psycopg2 driver by default. The app uses an async engine,
+        # so force the asyncpg driver regardless of what scheme was given.
+        if v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        return v
 
 
 settings = Settings()
