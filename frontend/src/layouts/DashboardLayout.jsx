@@ -15,7 +15,8 @@ import {
   Award,
   Store,
   Bell,
-  Landmark
+  Landmark,
+  Inbox
 } from 'lucide-react'
 import { Button } from '../components/common/Button'
 import useAuthStore from '../store/useAuthStore'
@@ -65,6 +66,7 @@ export default function DashboardLayout() {
     { icon: Package, label: 'My Products', path: `/seller/products` },
     { icon: Store, label: 'Storehouse', path: `/seller/storehouse` },
     { icon: ShoppingCart, label: 'Orders', path: `/seller/orders` },
+    { icon: Inbox, label: 'Messages', path: `/seller/messages` },
     { icon: Wallet, label: 'Wallet', path: `/seller/wallet` },
     { icon: Award, label: 'Packages', path: `/seller/packages` },
     { icon: MessageSquare, label: 'Support', path: `/seller/support` },

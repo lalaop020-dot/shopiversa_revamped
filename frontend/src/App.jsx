@@ -25,6 +25,7 @@ import Wallet from './pages/seller/Wallet'
 import PackageManagement from './pages/seller/PackageManagement'
 import ShopSettings from './pages/seller/Settings'
 import SupportTickets from './pages/seller/Support'
+import SellerMessages from './pages/seller/Messages'
 import AddEditProduct from './pages/seller/AddEditProduct'
 import SellerApprovals from './pages/admin/SellerApprovals'
 import AdminOrders from './pages/admin/AdminOrders'
@@ -82,6 +83,7 @@ function App() {
             <Route path="product/add" element={<AddEditProduct />} />
             <Route path="product/edit/:id" element={<AddEditProduct />} />
             <Route path="orders" element={<SellerOrders />} />
+            <Route path="messages" element={<SellerMessages />} />
             <Route path="wallet" element={<Wallet />} />
             <Route path="packages" element={<PackageManagement />} />
             <Route path="support" element={<SupportTickets />} />

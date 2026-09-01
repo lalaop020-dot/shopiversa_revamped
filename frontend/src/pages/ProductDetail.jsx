@@ -207,7 +207,8 @@ export default function ProductDetail() {
             </div>
             {product.sellerEmail && (
               <Button variant="outline" className="w-full mt-6 gap-2" onClick={handleChatWithSeller}>
-                <MessageSquare className="w-4 h-4" /> Chat with Seller
+                <MessageSquare className="w-4 h-4" />
+                {isAuthenticated ? 'Chat with Seller' : 'Log In to Chat with Seller'}
               </Button>
             )}
           </Card>
