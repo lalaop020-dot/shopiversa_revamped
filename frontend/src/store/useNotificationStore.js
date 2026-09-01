@@ -11,9 +11,19 @@ const useNotificationStore = create((set) => ({
       const notifications = data.data.notifications
       set({ notifications, unreadCount: notifications.filter((n) => !n.isRead).length })
       return notifications
-    } catch (e) {
+    } catch {
       return []
     }
+  },
+
+  markRead: async (id) => {
+    try {
+      await api.put(`/notifications/${id}/read`)
+      set((state) => {
+        const notifications = state.notifications.map((n) => n.id === id ? { ...n, isRead: true } : n)
+        return { notifications, unreadCount: notifications.filter((n) => !n.isRead).length }
+      })
+    } catch { /* leave state as-is on failure */ }
   },
 
   markAllRead: async () => {
@@ -23,14 +33,14 @@ const useNotificationStore = create((set) => ({
         notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
         unreadCount: 0,
       }))
-    } catch (e) { /* leave state as-is on failure */ }
+    } catch { /* leave state as-is on failure */ }
   },
 
   clearAll: async () => {
     try {
       await api.delete('/notifications/clear')
       set({ notifications: [], unreadCount: 0 })
-    } catch (e) { /* leave state as-is on failure */ }
+    } catch { /* leave state as-is on failure */ }
   },
 
   deleteNotification: async (id) => {
@@ -40,7 +50,7 @@ const useNotificationStore = create((set) => ({
         const notifications = state.notifications.filter((n) => n.id !== id)
         return { notifications, unreadCount: notifications.filter((n) => !n.isRead).length }
       })
-    } catch (e) { /* leave state as-is on failure */ }
+    } catch { /* leave state as-is on failure */ }
   },
 }))
 

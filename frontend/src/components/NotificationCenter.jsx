@@ -1,8 +1,9 @@
 import { useEffect } from 'react'
-import { Bell, ShoppingCart, DollarSign, Award, Info } from 'lucide-react'
+import { Bell, ShoppingCart, DollarSign, Award, Info, MessageSquare } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import useNotificationStore from '../store/useNotificationStore'
+import useAuthStore from '../store/useAuthStore'
 import { timeAgo } from '../utils/formatters'
 
 const TYPE_ICONS = {
@@ -10,16 +11,34 @@ const TYPE_ICONS = {
   wallet: DollarSign,
   package: Award,
   info: Info,
+  message: MessageSquare,
 }
+
+// Where a "New message from ..." notification should take you, by role.
+const MESSAGE_INBOX_PATH = { customer: '/messages', seller: '/seller/messages', admin: '/admin/support' }
 
 export function NotificationCenter({ isOpen, onClose }) {
   const notifications = useNotificationStore((state) => state.notifications)
   const fetchNotifications = useNotificationStore((state) => state.fetchNotifications)
+  const markRead = useNotificationStore((state) => state.markRead)
   const markAllRead = useNotificationStore((state) => state.markAllRead)
+  const role = useAuthStore((state) => state.role)
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (isOpen) fetchNotifications()
   }, [isOpen, fetchNotifications])
+
+  const handleNotifClick = (notif) => {
+    if (!notif.isRead) markRead(notif.id)
+    if (notif.type === 'message') {
+      const path = MESSAGE_INBOX_PATH[role]
+      if (path) {
+        navigate(path)
+        onClose()
+      }
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -46,6 +65,7 @@ export function NotificationCenter({ isOpen, onClose }) {
                 return (
                   <div
                     key={notif.id}
+                    onClick={() => handleNotifClick(notif)}
                     className={`p-4 border-b border-dark-border hover:bg-white/5 transition-all cursor-pointer relative ${
                       !notif.isRead ? 'bg-primary/5' : ''
                     }`}

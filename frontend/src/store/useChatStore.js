@@ -37,8 +37,10 @@ const useChatStore = create(
         return Array.isArray(msgs) ? msgs : EMPTY_MESSAGES
       },
 
-      sendMessage: async (email, text) => {
-        const { data } = await api.post('/chat/messages', { recipientEmail: email, text })
+      sendMessage: async (email, text, productId) => {
+        const payload = { recipientEmail: email, text }
+        if (productId != null) payload.productId = productId
+        const { data } = await api.post('/chat/messages', payload)
         const msg = data.data.message
         set((state) => {
           const current = state.conversations[email] || []

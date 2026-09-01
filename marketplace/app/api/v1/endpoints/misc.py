@@ -10,7 +10,8 @@ from decimal import Decimal
 from app.db.database import get_db
 from app.models.models import (PackageRequest, Subscription, PackageName, TxStatus,
                                 ChatMessage, Notification, NotificationType, SupportTicket,
-                                TicketPriority, TicketStatus, ContactMessage, User, UserRole)
+                                TicketPriority, TicketStatus, ContactMessage, SellerProduct,
+                                User, UserRole)
 from app.core.deps import current_user, seller_only
 from app.core.response import ok, err
 
@@ -111,9 +112,20 @@ def msg_dict(m: ChatMessage) -> dict:
         "id": m.id, "text": m.text,
         "senderId": m.sender_id,
         "sender": m.sender_role,
+        "productId": m.product_id,
+        "productName": m.product_name,
+        "productImage": m.product_image,
         "time": m.created_at.strftime("%I:%M %p"),
         "createdAt": m.created_at.isoformat(),
     }
+
+
+def notify_sender_name(sender: User) -> str:
+    if sender.role == UserRole.admin:
+        return "Support"
+    if sender.role == UserRole.seller:
+        return sender.shop_name or sender.name
+    return sender.name
 
 
 @router.get("/chat/conversations")
@@ -181,6 +193,7 @@ async def get_messages(partner_email: str, user: User = Depends(current_user),
 class SendMessageIn(BaseModel):
     recipientEmail: str
     text: str
+    productId: Optional[int] = None  # the seller-product this message is about, if any
 
 
 @router.post("/chat/messages")
@@ -202,13 +215,36 @@ async def send_message(data: SendMessageIn, user: User = Depends(current_user),
     if not allowed:
         return err("You can only message support or a shop/customer you're dealing with", 403)
 
+    product_name = product_image = None
+    if data.productId is not None:
+        sp_result = await db.execute(
+            select(SellerProduct).options(selectinload(SellerProduct.global_product))
+            .where(SellerProduct.id == data.productId)
+        )
+        sp = sp_result.scalar_one_or_none()
+        if sp and sp.global_product:
+            product_name = sp.global_product.name
+            product_image = sp.global_product.image
+
     msg = ChatMessage(
         sender_id=user.id,
         receiver_id=partner.id,
         text=data.text,
         sender_role=user.role.value,
+        product_id=data.productId,
+        product_name=product_name,
+        product_image=product_image,
     )
     db.add(msg)
+
+    preview = data.text if len(data.text) <= 100 else data.text[:97] + "..."
+    db.add(Notification(
+        user_id=partner.id,
+        title=f"New message from {notify_sender_name(user)}",
+        message=preview,
+        type=NotificationType.message,
+    ))
+
     await db.commit()
     await db.refresh(msg)
     return ok({"message": msg_dict(msg)}, 201)
@@ -231,6 +267,19 @@ async def get_notifications(user: User = Depends(current_user), db: AsyncSession
         .order_by(Notification.created_at.desc()).limit(50)
     )
     return ok({"notifications": [notif_dict(n) for n in result.scalars().all()]})
+
+
+@router.put("/notifications/{notif_id}/read")
+async def mark_read(notif_id: int, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(
+        select(Notification).where(Notification.id == notif_id, Notification.user_id == user.id)
+    )
+    n = result.scalar_one_or_none()
+    if n and not n.is_read:
+        n.is_read = True
+        db.add(n)
+        await db.commit()
+    return ok({"success": True})
 
 
 @router.put("/notifications/read-all")

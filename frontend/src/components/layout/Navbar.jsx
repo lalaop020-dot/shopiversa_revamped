@@ -103,13 +103,22 @@ export function Navbar() {
                   <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
                   <div className="absolute right-0 mt-2 w-48 bg-dark-card border border-dark-border rounded-xl shadow-2xl p-2 z-50 animate-fade-in">
                     {role === 'customer' ? (
-                      <Link 
-                        to="/profile" 
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="block px-4 py-2 hover:bg-dark-bg rounded-lg text-sm transition-all"
-                      >
-                        My Profile
-                      </Link>
+                      <>
+                        <Link
+                          to="/profile"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="block px-4 py-2 hover:bg-dark-bg rounded-lg text-sm transition-all"
+                        >
+                          My Profile
+                        </Link>
+                        <Link
+                          to="/messages"
+                          onClick={() => setIsDropdownOpen(false)}
+                          className="block px-4 py-2 hover:bg-dark-bg rounded-lg text-sm transition-all"
+                        >
+                          Messages
+                        </Link>
+                      </>
                     ) : (
                       <Link 
                         to={`/${role}/dashboard`} 

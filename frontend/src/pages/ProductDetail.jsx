@@ -220,6 +220,7 @@ export default function ProductDetail() {
           <ChatWindow
             recipientEmail={product.sellerEmail}
             recipientName={product.shopName || product.sellerEmail}
+            product={{ id: product.id, name: product.name, image: product.image }}
             onClose={() => setIsChatOpen(false)}
           />
         )}

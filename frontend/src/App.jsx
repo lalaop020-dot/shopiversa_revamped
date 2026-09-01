@@ -31,6 +31,7 @@ import SellerApprovals from './pages/admin/SellerApprovals'
 import AdminOrders from './pages/admin/AdminOrders'
 import CustomerProfile from './pages/CustomerProfile'
 import NotificationsPage from './pages/NotificationsPage'
+import Messages from './pages/Messages'
 import Contact from './pages/Contact'
 import Faq from './pages/Faq'
 import AdminTransactions from './pages/admin/AdminTransactions'
@@ -55,6 +56,7 @@ function App() {
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/profile" element={<CustomerProfile />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/messages" element={<Messages />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/faq" element={<Faq />} />
           </Route>

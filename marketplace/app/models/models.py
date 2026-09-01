@@ -70,6 +70,7 @@ class NotificationType(str, enum.Enum):
     wallet = "wallet"
     info = "info"
     package = "package"
+    message = "message"  # new chat message — see migrate_notification_type.py
 
 
 class TicketPriority(str, enum.Enum):
@@ -266,7 +267,13 @@ class ChatMessage(Base):
     sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     receiver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     text = Column(Text, nullable=False)
-    sender_role = Column(String(20), nullable=False)  # 'user', 'admin', 'bot'
+    sender_role = Column(String(20), nullable=False)  # 'customer', 'seller', 'admin'
+    # Optional product context (e.g. "Chat with Seller" from a product page) —
+    # denormalized name/image so the reference survives the listing being
+    # edited or removed later, same pattern as OrderItem.
+    product_id = Column(BigInteger, ForeignKey("seller_products.id", ondelete="SET NULL"), nullable=True)
+    product_name = Column(String(300), nullable=True)
+    product_image = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     sender = relationship("User", foreign_keys=[sender_id], back_populates="sent_messages")

@@ -2,10 +2,17 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, User, X, Minimize2, Maximize2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from './common/Button'
+import { ChatMessageBubble } from './ChatMessageBubble'
 import useAuthStore from '../store/useAuthStore'
 import useChatStore from '../store/useChatStore'
 
-export function ChatWindow({ recipientEmail, recipientName = 'Chat', onClose }) {
+/**
+ * `product` (optional): { id, name, image } — when set (e.g. opened via
+ * "Chat with Seller" on a product page), it's pinned as a reminder banner
+ * and attached to the first message sent this session, so the recipient
+ * sees exactly which listing prompted the conversation.
+ */
+export function ChatWindow({ recipientEmail, recipientName = 'Chat', product, onClose }) {
   const currentUserId = useAuthStore((state) => state.user?.id)
 
   const messages = useChatStore((state) => state.getMessages(recipientEmail))
@@ -16,6 +23,7 @@ export function ChatWindow({ recipientEmail, recipientName = 'Chat', onClose }) 
   const [isSending, setIsSending] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const scrollRef = useRef(null)
+  const productAttachedRef = useRef(false) // only tag the first outgoing message with product context
 
   useEffect(() => {
     if (recipientEmail) fetchMessages(recipientEmail)
@@ -31,10 +39,12 @@ export function ChatWindow({ recipientEmail, recipientName = 'Chat', onClose }) 
     e.preventDefault()
     if (!input.trim() || !recipientEmail || isSending) return
     const text = input
+    const attachProduct = product && !productAttachedRef.current
     setInput('')
     setIsSending(true)
     try {
-      await sendMessage(recipientEmail, text)
+      await sendMessage(recipientEmail, text, attachProduct ? product.id : undefined)
+      if (attachProduct) productAttachedRef.current = true
     } catch {
       setInput(text) // restore on failure so the message isn't lost
     } finally {
@@ -77,6 +87,19 @@ export function ChatWindow({ recipientEmail, recipientName = 'Chat', onClose }) 
 
       {!isMinimized && (
         <>
+          {/* Pinned product context */}
+          {product && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-dark-border bg-dark-bg/40 shrink-0">
+              {product.image && (
+                <img src={product.image} alt={product.name} className="w-7 h-7 rounded-lg object-cover shrink-0" />
+              )}
+              <div className="min-w-0">
+                <div className="text-[9px] text-slate-500 uppercase tracking-wide">Asking about</div>
+                <div className="text-xs font-medium truncate">{product.name}</div>
+              </div>
+            </div>
+          )}
+
           {/* Messages Section */}
           <div
             ref={scrollRef}
@@ -87,24 +110,9 @@ export function ChatWindow({ recipientEmail, recipientName = 'Chat', onClose }) 
                 No messages yet — say hello!
               </div>
             )}
-            {messages.map((msg, index) => {
-              const isMe = msg.senderId === currentUserId
-              return (
-                <div
-                  key={msg.id || index}
-                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                >
-                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
-                    isMe
-                      ? 'bg-primary text-white rounded-tr-none'
-                      : 'bg-dark-card border border-dark-border text-white rounded-tl-none'
-                  }`}>
-                    {msg.text}
-                  </div>
-                  <span className="text-[9px] text-slate-600 mt-1">{msg.time}</span>
-                </div>
-              )
-            })}
+            {messages.map((msg, index) => (
+              <ChatMessageBubble key={msg.id || index} msg={msg} isMe={msg.senderId === currentUserId} />
+            ))}
           </div>
 
           {/* Input Section */}

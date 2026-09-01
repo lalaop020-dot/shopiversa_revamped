@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MessageSquare, Send, Clock } from 'lucide-react'
 import { Card } from './common/Card'
 import { Button } from './common/Button'
+import { ChatMessageBubble } from './ChatMessageBubble'
 import useAuthStore from '../store/useAuthStore'
 import useChatStore from '../store/useChatStore'
 import toast from 'react-hot-toast'
@@ -128,24 +129,9 @@ export function ChatInbox({ title, subtitle }) {
 
               {/* Messages scrolling list */}
               <div ref={scrollRef} className="flex-grow p-6 overflow-y-auto space-y-4 bg-dark-bg/10">
-                {currentMessages.map((msg, index) => {
-                  const isMe = msg.senderId === currentUserId
-                  return (
-                    <div
-                      key={msg.id || index}
-                      className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[70%] rounded-2xl p-4 text-sm relative shadow-md ${
-                        isMe
-                          ? 'bg-primary text-white rounded-tr-none'
-                          : 'bg-dark-card border border-dark-border text-white rounded-tl-none'
-                      }`}>
-                        <div>{msg.text}</div>
-                        <div className="text-[9px] text-slate-500 text-right mt-1.5">{msg.time}</div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {currentMessages.map((msg, index) => (
+                  <ChatMessageBubble key={msg.id || index} msg={msg} isMe={msg.senderId === currentUserId} />
+                ))}
                 {currentMessages.length === 0 && (
                   <div className="text-center text-slate-500 text-sm py-8">No messages yet.</div>
                 )}
