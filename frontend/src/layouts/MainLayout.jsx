@@ -1,9 +1,19 @@
 import { Outlet, Link } from 'react-router-dom'
+import { Truck, ShieldCheck, Zap } from 'lucide-react'
 import { Navbar } from '../components/layout/Navbar'
 
 export default function MainLayout() {
   return (
     <div className="flex flex-col min-h-screen">
+      <div className="bg-primary text-white text-xs sm:text-sm py-2 px-4 overflow-hidden">
+        <div className="container mx-auto flex items-center justify-center gap-2 sm:gap-6 flex-wrap text-center font-medium">
+          <span className="flex items-center gap-1.5"><Truck className="w-3.5 h-3.5" /> Free shipping on orders over $50</span>
+          <span className="hidden sm:inline opacity-50">&middot;</span>
+          <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Secure checkout</span>
+          <span className="hidden sm:inline opacity-50">&middot;</span>
+          <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" /> Fast delivery</span>
+        </div>
+      </div>
       <Navbar />
       <main className="flex-grow container mx-auto px-4 py-8">
         <Outlet />

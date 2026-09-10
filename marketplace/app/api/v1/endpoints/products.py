@@ -108,7 +108,7 @@ async def list_products(
     if search:
         q = q.where(Product.name.ilike(f"%{search}%"))
     if category:
-        q = q.where(Product.category == category)
+        q = q.where(Product.category.ilike(category))  # case-insensitive, see /marketplace/products
     count_q = select(func.count()).select_from(q.subquery())
     total = (await db.execute(count_q)).scalar()
     q = q.order_by(Product.created_at.desc()).offset((page - 1) * limit).limit(limit)
@@ -375,7 +375,10 @@ async def marketplace_products(
     ).join(Product, SellerProduct.global_id == Product.id)\
         .where(SellerProduct.status == ProductStatus.Active, Product.is_available == True)
     if category:
-        q = q.where(Product.category == category)
+        # Case-insensitive: category nav links lowercase the name for the URL
+        # slug (e.g. /category/kitchen), which otherwise never exact-matches
+        # the real stored value (e.g. "Kitchen").
+        q = q.where(Product.category.ilike(category))
     if search:
         q = q.where(Product.name.ilike(f"%{search}%"))
     count_q = select(func.count()).select_from(q.subquery())

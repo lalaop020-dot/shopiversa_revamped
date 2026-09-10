@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { ShoppingCart, User, Search, Menu, X, Bell, Home, ShoppingBag, Store } from 'lucide-react'
+import { ShoppingCart, User, Search, Menu, X, Bell, Home, ShoppingBag, Store, Zap, ArrowRight } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../common/Button'
 import { NotificationCenter } from '../NotificationCenter'
 import useAuthStore from '../../store/useAuthStore'
 import useCartStore from '../../store/useCartStore'
 import useNotificationStore from '../../store/useNotificationStore'
+import { useProductStore } from '../../store/useProductStore'
+import { shortCategoryLabel } from '../../utils/categoryLabels'
 
 export function Navbar() {
   const [isNotifOpen, setIsNotifOpen] = useState(false)
@@ -16,11 +18,18 @@ export function Navbar() {
   const cartItemCount = useCartStore((state) => state.getItemCount())
   const unreadCount = useNotificationStore((state) => state.unreadCount)
   const fetchNotifications = useNotificationStore((state) => state.fetchNotifications)
+  const publicCategories = useProductStore((state) => state.publicCategories)
+  const fetchPublicCategories = useProductStore((state) => state.fetchPublicCategories)
   const navigate = useNavigate()
 
   useEffect(() => {
     if (isAuthenticated) fetchNotifications()
   }, [isAuthenticated, fetchNotifications])
+
+  useEffect(() => {
+    if (publicCategories.length === 0) fetchPublicCategories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -146,7 +155,7 @@ export function Navbar() {
           )}
 
           <Link to="/seller-register" className="hidden xl:block">
-            <Button variant="outline" size="sm">Become a Seller</Button>
+            <Button variant="outline" size="sm" className="gap-1.5"><Zap className="w-3.5 h-3.5" /> Sell</Button>
           </Link>
           <button
             className="lg:hidden p-2 hover:bg-dark-card rounded-full transition-all"
@@ -155,6 +164,29 @@ export function Navbar() {
           >
             {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
+        </div>
+      </div>
+
+      {/* Category quick-nav — desktop only */}
+      <div className="hidden lg:block border-t border-dark-border/60">
+        <div className="container mx-auto px-4 py-2.5 flex items-center justify-between gap-6">
+          <div className="flex items-center gap-6 text-sm overflow-x-auto scrollbar-hide">
+            <Link to="/products" className="font-semibold text-white hover:text-primary transition-colors whitespace-nowrap">
+              All Products
+            </Link>
+            {publicCategories.slice(0, 7).map((cat) => (
+              <Link
+                key={cat.name}
+                to={`/category/${cat.name.toLowerCase()}`}
+                className="text-slate-400 hover:text-primary transition-colors whitespace-nowrap"
+              >
+                {shortCategoryLabel(cat.name)}
+              </Link>
+            ))}
+          </div>
+          <Link to="/seller-register" className="flex items-center gap-1 text-primary font-semibold text-sm whitespace-nowrap hover:underline">
+            Become a Seller <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
 

@@ -3,17 +3,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight, ShieldCheck, Search, ChevronLeft, ChevronRight,
   ShoppingCart, TrendingUp, Package, Layers, Eye,
-  Smartphone, Dumbbell, Sparkles, Shirt, Home as HomeIcon, PawPrint,
-  ShoppingBag, Laptop, Headphones, Gamepad, Puzzle
+  Truck, RotateCcw, CreditCard, Flame
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '../components/common/Button'
-import { Card } from '../components/common/Card'
 import { ProductCard } from '../components/ProductCard'
 import { useProductStore } from '../store/useProductStore'
+import { shortCategoryLabel } from '../utils/categoryLabels'
 import api from '../api/axios'
 
 const PAGE_SIZE = 12
+const CATEGORY_PILL_LIMIT = 6
+
+const FEATURES = [
+  { icon: Truck, title: 'Free Shipping', subtitle: 'Orders over $50' },
+  { icon: ShieldCheck, title: 'Secure Checkout', subtitle: '256-bit SSL' },
+  { icon: RotateCcw, title: 'Easy Returns', subtitle: '30-day policy' },
+  { icon: CreditCard, title: 'Multiple Payments', subtitle: 'Cards & wallets' },
+]
 
 export default function Home() {
   const navigate = useNavigate()
@@ -28,18 +35,52 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [page, setPage] = useState(1)
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [showAllCategories, setShowAllCategories] = useState(false)
 
   useEffect(() => {
     fetchPublicCategories()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Fetched once, unfiltered — this feeds the hero's "Featured Products"
+  // carousel and the overall catalog stats. Kept separate from "Today's
+  // Products" below so picking a category there doesn't also starve the carousel.
   useEffect(() => {
-    fetchMarketplaceProducts({ page, limit: PAGE_SIZE })
+    fetchMarketplaceProducts({ limit: PAGE_SIZE })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page])
+  }, [])
 
-  // Featured products (top 5 by stock availability, from the currently loaded page)
+  // "Today's Products" — its own real backend-filtered fetch (via the same
+  // /marketplace/products endpoint the quick-search box already calls
+  // directly below), so selecting a category shows every matching product,
+  // not just whatever happened to be on the hero's already-loaded page.
+  const [todaysProducts, setTodaysProducts] = useState([])
+  const [todaysMeta, setTodaysMeta] = useState({ total: 0, page: 1, pages: 1 })
+  const [todaysLoading, setTodaysLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadingTimer = setTimeout(() => setTodaysLoading(true), 0)
+    const params = { page, limit: PAGE_SIZE }
+    if (selectedCategory !== 'All') params.category = selectedCategory
+    api.get('/marketplace/products', { params })
+      .then(({ data }) => {
+        if (cancelled) return
+        setTodaysProducts(data.data.products)
+        setTodaysMeta({ total: data.data.total, page: data.data.page, pages: data.data.pages })
+      })
+      .catch(() => { if (!cancelled) setTodaysProducts([]) })
+      .finally(() => { if (!cancelled) setTodaysLoading(false) })
+    return () => { cancelled = true; clearTimeout(loadingTimer) }
+  }, [page, selectedCategory])
+
+  const handleSelectCategory = (name) => {
+    setSelectedCategory(name)
+    setPage(1)
+  }
+
+  // Featured products (top 5 by stock availability, from the unfiltered catalog fetch)
   const featuredProducts = [...activeProducts]
     .sort((a, b) => b.stock - a.stock)
     .slice(0, 5)
@@ -77,11 +118,29 @@ export default function Home() {
   // Compute real stats from the backend (not just the currently loaded page)
   const totalProducts = marketplaceMeta.total
   const totalCategories = publicCategories.length
+  // Sum of stock across the currently-loaded page — a live, non-fabricated
+  // number, just scoped to what's fetched rather than the full catalog.
+  const inStockCount = activeProducts.reduce((sum, p) => sum + (p.stock || 0), 0)
 
   const currentProduct = featuredProducts[currentIndex]
 
   return (
     <div className="space-y-12">
+      {/* Trust Features Strip */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 -mb-4">
+        {FEATURES.map(({ icon: Icon, title, subtitle }) => (
+          <div key={title} className="flex items-center gap-3 bg-dark-card border border-dark-border rounded-xl p-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Icon className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-bold truncate">{title}</div>
+              <div className="text-xs text-slate-500 truncate">{subtitle}</div>
+            </div>
+          </div>
+        ))}
+      </section>
+
       {/* Hero Section */}
       <section className="relative py-12 lg:py-24 overflow-hidden">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -90,11 +149,14 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight mb-6 text-primary">
-              Shopvirsa
+            <div className="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-5">
+              <Flame className="w-3.5 h-3.5" /> Premium Marketplace
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-extrabold leading-tight mb-6">
+              Shop Smarter with <span className="text-primary">Shopvirsa</span>
             </h1>
             <p className="text-xl text-slate-400 mb-8 max-w-lg">
-              Experience the future of online marketplaces. Premium products, verified sellers, and lightning-fast delivery.
+              Premium products from verified sellers. Lightning-fast delivery, secure checkout, and an incredible selection — all in one place.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link to="/products">
@@ -104,7 +166,7 @@ export default function Home() {
                 <Button size="lg" variant="outline">Explore Categories</Button>
               </Link>
             </div>
-            
+
             <div className="mt-12 flex items-center gap-8 border-t border-dark-border pt-8">
               <div>
                 <div className="text-2xl font-bold">{totalProducts}</div>
@@ -113,6 +175,14 @@ export default function Home() {
               <div>
                 <div className="text-2xl font-bold">{totalCategories}</div>
                 <div className="text-sm text-slate-500">Categories</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{inStockCount}+</div>
+                <div className="text-sm text-slate-500">In Stock</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-5 h-5 text-green-500" />
+                <div className="text-sm text-slate-500">Secure</div>
               </div>
             </div>
           </motion.div>
@@ -291,59 +361,80 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Categories */}
+      {/* Today's Products — real backend-filtered fetch per selected category */}
       <section>
-        <div className="flex items-center justify-between mb-10">
-          <h2 className="text-3xl font-bold">Featured Categories</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-3xl font-bold flex items-center gap-2">
+            <Flame className="w-7 h-7 text-orange-500" /> Today's Products
+          </h2>
           <Link to="/products">
-            <Button variant="ghost">View All</Button>
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-6">
-          {publicCategories.map((cat) => {
-            const catIcon = getCategoryIcon(cat.name)
-            return (
-              <Link to={`/category/${cat.name.toLowerCase()}`} key={cat.name}>
-                <Card className="text-center group cursor-pointer hover:border-primary transition-all p-5 h-full flex flex-col justify-center items-center">
-                  <div className="w-14 h-14 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl mx-auto mb-3 flex items-center justify-center group-hover:scale-110 transition-all">
-                    {catIcon}
-                  </div>
-                  <h3 className="font-semibold text-sm mb-1">{cat.name}</h3>
-                  <span className="text-[10px] text-slate-500 bg-dark-bg px-2 py-0.5 rounded-full">{cat.count} {cat.count === 1 ? 'item' : 'items'}</span>
-                </Card>
-              </Link>
-            )
-          })}
-          {publicCategories.length === 0 && (
-            <div className="col-span-full text-center py-10 text-slate-500">
-              No categories available yet.
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Browse Products — real backend data, paginated */}
-      <section>
-        <div className="flex items-center justify-between mb-10">
-          <h2 className="text-3xl font-bold">Shop the Marketplace</h2>
-          <Link to="/products">
-            <Button variant="ghost">View All</Button>
+            <Button variant="ghost" className="gap-1">View All <ArrowRight className="w-4 h-4" /></Button>
           </Link>
         </div>
 
-        {activeProducts.length === 0 ? (
+        {/* Category pill filter — capped to a handful by default, with a toggle to reveal the rest */}
+        <div className="flex items-center gap-3 mb-8">
+          <button
+            onClick={() => document.getElementById('category-pills')?.scrollBy({ left: -200, behavior: 'smooth' })}
+            className="hidden sm:flex p-2 rounded-full border border-dark-border text-slate-400 hover:text-white hover:bg-dark-card shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div id="category-pills" className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => handleSelectCategory('All')}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                selectedCategory === 'All' ? 'bg-primary text-white' : 'bg-dark-card border border-dark-border text-slate-400 hover:text-white'
+              }`}
+            >
+              All
+            </button>
+            {(showAllCategories ? publicCategories : publicCategories.slice(0, CATEGORY_PILL_LIMIT)).map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => handleSelectCategory(cat.name)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  selectedCategory === cat.name ? 'bg-primary text-white' : 'bg-dark-card border border-dark-border text-slate-400 hover:text-white'
+                }`}
+              >
+                {shortCategoryLabel(cat.name)}
+              </button>
+            ))}
+            {publicCategories.length > CATEGORY_PILL_LIMIT && (
+              <button
+                onClick={() => setShowAllCategories((v) => !v)}
+                className="px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border border-dashed border-primary/50 text-primary hover:bg-primary/10 transition-all"
+              >
+                {showAllCategories ? 'Show Less' : `Show All Categories (${publicCategories.length})`}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => document.getElementById('category-pills')?.scrollBy({ left: 200, behavior: 'smooth' })}
+            className="hidden sm:flex p-2 rounded-full border border-dark-border text-slate-400 hover:text-white hover:bg-dark-card shrink-0"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {!todaysLoading && todaysProducts.length === 0 ? (
           <div className="text-center py-20 bg-dark-card border border-dark-border rounded-xl text-slate-500">
-            No products available in the marketplace yet.
+            No products available in this category yet.
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {activeProducts.map((product) => (
-                <ProductCard key={product.id} product={product} showCartAction={true} />
+              {todaysProducts.map((product) => (
+                <div key={product.id} className="relative">
+                  <span className="absolute top-3 left-3 z-10 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                    Hot
+                  </span>
+                  <ProductCard product={product} showCartAction={true} />
+                </div>
               ))}
             </div>
 
-            {marketplaceMeta.pages > 1 && (
+            {todaysMeta.pages > 1 && (
               <div className="flex items-center justify-center gap-4 mt-10">
                 <Button
                   variant="outline"
@@ -353,12 +444,12 @@ export default function Home() {
                   <ChevronLeft className="w-4 h-4" /> Previous
                 </Button>
                 <span className="text-sm text-slate-400">
-                  Page {marketplaceMeta.page} of {marketplaceMeta.pages}
+                  Page {todaysMeta.page} of {todaysMeta.pages}
                 </span>
                 <Button
                   variant="outline"
-                  disabled={page >= marketplaceMeta.pages}
-                  onClick={() => setPage((p) => Math.min(marketplaceMeta.pages, p + 1))}
+                  disabled={page >= todaysMeta.pages}
+                  onClick={() => setPage((p) => Math.min(todaysMeta.pages, p + 1))}
                 >
                   Next <ChevronRight className="w-4 h-4" />
                 </Button>
@@ -369,25 +460,4 @@ export default function Home() {
       </section>
     </div>
   )
-}
-
-function getCategoryIcon(category) {
-  const icons = {
-    'Electronics': <Smartphone className="w-6 h-6 text-blue-400" />,
-    'Sports Goods': <Dumbbell className="w-6 h-6 text-orange-400" />,
-    'Cosmetics': <Sparkles className="w-6 h-6 text-pink-400" />,
-    "Men's Clothes & Outfits": <Shirt className="w-6 h-6 text-indigo-400" />,
-    "Women's Clothes & Outfits": <ShoppingBag className="w-6 h-6 text-rose-400" />,
-    'Home Appliances and Goods accessories': <HomeIcon className="w-6 h-6 text-emerald-400" />,
-    'Pet Food and accessories': <PawPrint className="w-6 h-6 text-amber-400" />,
-    'Toys & Games': <Puzzle className="w-6 h-6 text-yellow-400" />,
-    // Fallbacks
-    'Computers': <Laptop className="w-6 h-6 text-blue-400" />,
-    'Audio': <Headphones className="w-6 h-6 text-purple-400" />,
-    'Gaming': <Gamepad className="w-6 h-6 text-green-400" />,
-    'Home': <HomeIcon className="w-6 h-6 text-emerald-400" />,
-    'Sports': <Dumbbell className="w-6 h-6 text-orange-400" />,
-    'Beauty': <Sparkles className="w-6 h-6 text-pink-400" />,
-  }
-  return icons[category] || <ShoppingBag className="w-6 h-6 text-primary" />
 }
