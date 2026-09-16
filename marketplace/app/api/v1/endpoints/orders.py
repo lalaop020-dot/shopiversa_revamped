@@ -12,6 +12,7 @@ from app.db.database import get_db
 from app.models.models import Order, OrderItem, SellerProduct, User, UserRole, OrderStatus, Notification, NotificationType
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
+from app.core.security import verify_password, hash_password
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -99,6 +100,7 @@ class OrderIn(BaseModel):
 
 class StatusUpdate(BaseModel):
     status: str
+    transactionPassword: Optional[str] = None
 
 
 # Forward-only fulfillment pipeline. Cancelled is reachable from any
@@ -259,6 +261,19 @@ async def update_status(order_id: str, data: StatusUpdate,
         new_idx = ORDER_FLOW.index(new_status) if new_status in ORDER_FLOW else -1
         if new_idx <= current_idx:
             return err(f"Cannot move status backward from {o.status.value} to {new_status.value}", 400)
+
+    # Require and verify transaction password for seller/admin order approvals
+    if user.role in (UserRole.seller, UserRole.admin):
+        if user.hashed_txn_password:
+            if not data.transactionPassword:
+                return err("Transaction password is required to approve or accept this order", 400)
+            if not verify_password(data.transactionPassword, user.hashed_txn_password):
+                return err("Incorrect transaction password", 400)
+        else:
+            if not data.transactionPassword or len(data.transactionPassword.strip()) < 4:
+                return err("Transaction password is required. Please set a transaction password to approve this order", 400)
+            user.hashed_txn_password = hash_password(data.transactionPassword.strip())
+            db.add(user)
 
     o.status = new_status
     o.updated_at = datetime.utcnow()

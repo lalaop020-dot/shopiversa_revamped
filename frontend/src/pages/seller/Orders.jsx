@@ -4,6 +4,7 @@ import { Filter, Search, Eye, ShoppingBag, X, MapPin, CreditCard, ArrowRight } f
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
+import TransactionPasswordModal from '../../components/common/TransactionPasswordModal'
 import useOrderStore from '../../store/useOrderStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import toast from 'react-hot-toast'
@@ -15,6 +16,8 @@ export default function SellerOrders() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [isUpdating, setIsUpdating] = useState(false)
+  const [pendingApproval, setPendingApproval] = useState(null)
+
   const rawOrders = useOrderStore(state => state.orders)
   const fetchSellerOrders = useOrderStore(state => state.fetchSellerOrders)
   const updateOrderStatus = useOrderStore(state => state.updateOrderStatus)
@@ -40,12 +43,20 @@ export default function SellerOrders() {
     )
     .filter(order => statusFilter === 'All' || order.status === statusFilter)
 
-  const handleStatusChange = async (orderId, newStatus) => {
+  const openApprovalModal = (orderId, newStatus) => {
+    setPendingApproval({ orderId, newStatus })
+  }
+
+  const handleConfirmApproval = async (transactionPassword) => {
+    if (!pendingApproval) return
+    const { orderId, newStatus } = pendingApproval
     setIsUpdating(true)
     try {
-      const updated = await updateOrderStatus(orderId, newStatus)
-      setSelectedOrder(updated)
-      toast.success(`Order marked as ${statusMeta(newStatus).label}`)
+      const updated = await updateOrderStatus(orderId, newStatus, transactionPassword)
+      setSelectedOrder(prev => prev ? ({ ...prev, ...updated }) : updated)
+      toast.success(`Order #${orderId} approved and marked as ${statusMeta(newStatus).label}`)
+      setPendingApproval(null)
+      fetchSellerOrders()
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to update order status')
     } finally {
@@ -179,7 +190,7 @@ export default function SellerOrders() {
                             variant={opt === 'Cancelled' ? 'outline' : 'primary'}
                             className={opt === 'Cancelled' ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''}
                             isLoading={isUpdating}
-                            onClick={() => handleStatusChange(selectedOrder.id, opt)}
+                            onClick={() => openApprovalModal(selectedOrder.id, opt)}
                           >
                             Mark {statusMeta(opt).label}
                           </Button>
@@ -240,6 +251,16 @@ export default function SellerOrders() {
           </motion.div>
         </div>
       )}
+
+      {/* Security Transaction Password Modal */}
+      <TransactionPasswordModal
+        isOpen={!!pendingApproval}
+        onClose={() => setPendingApproval(null)}
+        onConfirm={handleConfirmApproval}
+        orderId={pendingApproval?.orderId}
+        targetStatusLabel={pendingApproval ? statusMeta(pendingApproval.newStatus).label : ''}
+        isLoading={isUpdating}
+      />
     </div>
   )
 }
