@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Eye, ShoppingBag, RefreshCw, X, MapPin, CreditCard } from 'lucide-react'
+import { Search, Eye, ShoppingBag, RefreshCw, X, MapPin, CreditCard, ArrowRight, CheckCircle2 } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore from '../../store/useOrderStore'
-import { ORDER_FLOW, statusMeta } from '../../utils/orderStatus'
+import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 
 const FILTERS = ['All', ...ORDER_FLOW, 'Cancelled']
 
@@ -13,6 +14,7 @@ export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState('All')
   const [loading, setLoading] = useState(true)
+  const [updatingOrderId, setUpdatingOrderId] = useState(null)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const orders = useOrderStore(state => state.adminOrders)
   const fetchAdminOrders = useOrderStore(state => state.fetchAdminOrders)
@@ -27,6 +29,32 @@ export default function AdminOrders() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter])
+
+  const handleStatusChange = async (orderId, newStatus) => {
+    setUpdatingOrderId(orderId)
+    try {
+      const updated = await useOrderStore.getState().updateOrderStatus(orderId, newStatus)
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => ({
+          ...prev,
+          ...updated,
+          customerEmail: prev?.customerEmail,
+          items: prev?.items?.map((item, i) => ({
+            ...item,
+            ...(updated.items?.[i] || {}),
+            sellerName: item.sellerName,
+            sellerEmail: item.sellerEmail,
+          })) || updated.items
+        }))
+      }
+      toast.success(`Order #${orderId} marked as ${statusMeta(newStatus).label}`)
+      await load()
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to update order status')
+    } finally {
+      setUpdatingOrderId(null)
+    }
+  }
 
   const filteredOrders = orders.filter(order =>
     order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,7 +71,7 @@ export default function AdminOrders() {
     <div className="space-y-8 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Orders</h1>
+          <h1 className="text-3xl font-bold mb-2">Orders Management</h1>
           <p className="text-slate-400">All customer orders across every seller on the platform.</p>
         </div>
         <Button variant="outline" onClick={load} isLoading={loading}><RefreshCw className="w-4 h-4" /></Button>
@@ -92,6 +120,7 @@ export default function AdminOrders() {
             <tbody className="divide-y divide-dark-border">
               {filteredOrders.map((order) => {
                 const { label, color, icon: Icon } = statusMeta(order.status)
+                const nextOpt = nextStatusOptions(order.status)[0]
                 return (
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
@@ -109,9 +138,33 @@ export default function AdminOrders() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedOrder(order)}>
-                        <Eye className="w-4 h-4" /> View
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        {order.status === 'Processing' && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
+                            isLoading={updatingOrderId === order.id}
+                            onClick={() => handleStatusChange(order.id, 'Confirmed')}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Place / Confirm Order
+                          </Button>
+                        )}
+                        {order.status !== 'Processing' && nextOpt && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1 text-xs"
+                            isLoading={updatingOrderId === order.id}
+                            onClick={() => handleStatusChange(order.id, nextOpt)}
+                          >
+                            Mark {statusMeta(nextOpt).label}
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedOrder(order)}>
+                          <Eye className="w-4 h-4" /> View
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -150,10 +203,41 @@ export default function AdminOrders() {
 
             {(() => {
               const { label, color, icon: Icon } = statusMeta(selectedOrder.status)
+              const options = nextStatusOptions(selectedOrder.status)
               return (
-                <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 w-fit mb-6 ${color}`}>
-                  <Icon className="w-4 h-4" /> {label}
-                </span>
+                <div className="flex flex-wrap items-center gap-3 mb-6 bg-dark-bg/60 p-4 rounded-xl border border-dark-border">
+                  <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 ${color}`}>
+                    <Icon className="w-4 h-4" /> {label}
+                  </span>
+                  {options.length > 0 && (
+                    <>
+                      <ArrowRight className="w-4 h-4 text-slate-500" />
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {options.map(opt => (
+                          <Button
+                            key={opt}
+                            size="sm"
+                            variant={opt === 'Confirmed' ? 'primary' : opt === 'Cancelled' ? 'outline' : 'secondary'}
+                            className={
+                              opt === 'Confirmed'
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4'
+                                : opt === 'Cancelled'
+                                ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
+                                : ''
+                            }
+                            isLoading={updatingOrderId === selectedOrder.id}
+                            onClick={() => handleStatusChange(selectedOrder.id, opt)}
+                          >
+                            {opt === 'Confirmed' ? '✓ Place / Confirm Order' : `Mark ${statusMeta(opt).label}`}
+                          </Button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {options.length === 0 && (
+                    <span className="text-xs text-slate-500">This order has reached its final state.</span>
+                  )}
+                </div>
               )
             })()}
 
