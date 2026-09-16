@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # otherwise (e.g. ALLOWED_ORIGINS=https://example.com without brackets/
     # quotes) — a host UI where you'd naturally paste a bare URL. Comma-
     # separated, a single origin, or a JSON array are all accepted below.
-    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:4173"
+    ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173,*"
     UPLOAD_DIR: str = "uploads"
 
     class Config:
