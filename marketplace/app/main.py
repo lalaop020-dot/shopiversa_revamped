@@ -12,6 +12,7 @@ from app.api.v1.endpoints import auth, products, orders, wallet, admin, misc
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_tables()
+    await products.ensure_house_listings()
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(f"{settings.UPLOAD_DIR}/proofs", exist_ok=True)
     print(f"✅ {settings.APP_NAME} backend started on port 5000")

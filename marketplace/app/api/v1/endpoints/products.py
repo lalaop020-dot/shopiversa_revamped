@@ -52,6 +52,88 @@ async def gen_unique_seller_product_id(db: AsyncSession) -> int:
     raise HTTPException(500, "Could not generate a unique seller product ID, please retry")
 
 
+HOUSE_SELLER_EMAIL = "store@shopiversa.com"
+HOUSE_SHOP_NAME = "Shopiversa Store"
+
+
+async def get_or_create_house_seller(db: AsyncSession) -> User:
+    """The platform's own seller. Lists every storeroom product no real seller
+    has taken, so customers can see (and order) the whole catalog. It has an
+    unguessable password — it is never logged into, only owns listings."""
+    import secrets
+    from app.core.security import hash_password
+    from app.models.models import UserRole, ShopStatus, SellerBalance
+
+    house = (await db.execute(select(User).where(User.email == HOUSE_SELLER_EMAIL))).scalar_one_or_none()
+    if house:
+        return house
+    house = User(
+        name=HOUSE_SHOP_NAME, email=HOUSE_SELLER_EMAIL,
+        hashed_password=hash_password(secrets.token_urlsafe(32)),
+        role=UserRole.seller, shop_name=HOUSE_SHOP_NAME, shop_status=ShopStatus.approved,
+        shop_desc="Official Shopiversa catalog.",
+    )
+    db.add(house)
+    await db.flush()
+    db.add(SellerBalance(seller_id=house.id))
+    db.add(Subscription(seller_id=house.id, package_name=PackageName.Platinum))
+    return house
+
+
+async def add_house_listings(db: AsyncSession, products: list) -> int:
+    """Create house-seller listings for the given (already flushed) products that
+    don't have one. Caller commits."""
+    if not products:
+        return 0
+    house = await get_or_create_house_seller(db)
+    have = (await db.execute(
+        select(SellerProduct.global_id).where(
+            SellerProduct.seller_id == house.id,
+            SellerProduct.global_id.in_([p.id for p in products]),
+        )
+    )).scalars().all()
+    todo = [p for p in products if p.id not in set(have)]
+    if not todo:
+        return 0
+    # Reserve a collision-checked id range, as gen_product_id_batch does.
+    for _ in range(5):
+        base = int(time.time() * 1_000_000)
+        clash = await db.execute(
+            select(SellerProduct.id).where(SellerProduct.id >= base, SellerProduct.id < base + len(todo))
+        )
+        if not clash.first():
+            break
+    else:
+        raise HTTPException(500, "Could not allocate unique listing IDs, please retry")
+    for i, p in enumerate(todo):
+        db.add(SellerProduct(
+            id=base + i, seller_id=house.id, global_id=p.id,
+            price=p.price, stock=p.stock, status=ProductStatus.Active,
+        ))
+    return len(todo)
+
+
+async def ensure_house_listings() -> None:
+    """Startup hook: list any available product that has no listing at all under
+    the house seller. Insert-only — never edits or removes existing rows — so
+    running it on every boot is safe. Never blocks startup on failure."""
+    from app.db.database import AsyncSessionLocal
+    try:
+        async with AsyncSessionLocal() as db:
+            unlisted = (await db.execute(
+                select(Product).where(
+                    Product.is_available == True,
+                    ~select(SellerProduct.id).where(SellerProduct.global_id == Product.id).exists(),
+                )
+            )).scalars().all()
+            created = await add_house_listings(db, unlisted)
+            await db.commit()
+            if created:
+                print(f"Listed {created} unlisted product(s) under {HOUSE_SHOP_NAME}")
+    except Exception as e:
+        print(f"House listing sync skipped: {e}")
+
+
 def product_dict(p: Product) -> dict:
     return {
         "id": p.id, "name": p.name, "price": float(p.price),
@@ -133,7 +215,7 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 # Public — categories that actually have active, purchasable listings in the marketplace
 @router.get("/marketplace/categories")
 async def marketplace_categories(db: AsyncSession = Depends(get_db)):
-    q = select(Product.category, func.count(SellerProduct.id))\
+    q = select(Product.category, func.count(distinct(SellerProduct.global_id)))\
         .join(SellerProduct, SellerProduct.global_id == Product.id)\
         .where(SellerProduct.status == ProductStatus.Active, Product.is_available == True,
                Product.category.isnot(None))\
@@ -158,6 +240,8 @@ async def create_product(data: ProductIn, admin: User = Depends(admin_only),
     pid = await gen_unique_product_id(db)
     p = Product(id=pid, **data.model_dump())
     db.add(p)
+    await db.flush()
+    await add_house_listings(db, [p])
     await db.commit()
     await db.refresh(p)
     return ok({"product": product_dict(p)}, 201)
@@ -205,6 +289,7 @@ async def bulk_upload(data: dict, admin: User = Depends(admin_only),
 
     imported = 0
     errors = []
+    new_products = []
     for i, item in enumerate(products_list):
         try:
             if not isinstance(item, dict):
@@ -232,13 +317,17 @@ async def bulk_upload(data: dict, admin: User = Depends(admin_only),
             errors.append({"row": i, "name": item.get("name") if isinstance(item, dict) else None, "reason": str(e)})
             continue
 
-        db.add(Product(
+        new_product = Product(
             id=base_id + i,
             name=name, price=price, category=category, stock=stock,
             image=image, description=description,
-        ))
+        )
+        db.add(new_product)
+        new_products.append(new_product)
         imported += 1
 
+    await db.flush()
+    await add_house_listings(db, new_products)
     await db.commit()
     return ok({"imported": imported, "failed": len(errors), "errors": errors})
 
@@ -370,17 +459,25 @@ async def marketplace_products(
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy.orm import selectinload
-    q = select(SellerProduct).options(
-        selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller)
-    ).join(Product, SellerProduct.global_id == Product.id)\
+    # One card per catalog product: when several sellers list it, show the best
+    # offer (in-stock first, then cheapest). The house seller guarantees every
+    # product has at least one listing.
+    best = select(SellerProduct.id)\
+        .join(Product, SellerProduct.global_id == Product.id)\
         .where(SellerProduct.status == ProductStatus.Active, Product.is_available == True)
     if category:
         # Case-insensitive: category nav links lowercase the name for the URL
         # slug (e.g. /category/kitchen), which otherwise never exact-matches
         # the real stored value (e.g. "Kitchen").
-        q = q.where(Product.category.ilike(category))
+        best = best.where(Product.category.ilike(category))
     if search:
-        q = q.where(Product.name.ilike(f"%{search}%"))
+        best = best.where(Product.name.ilike(f"%{search}%"))
+    best = best.distinct(SellerProduct.global_id).order_by(
+        SellerProduct.global_id, (SellerProduct.stock <= 0), SellerProduct.price.asc(), SellerProduct.id
+    )
+    q = select(SellerProduct).options(
+        selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller)
+    ).where(SellerProduct.id.in_(best.scalar_subquery()))
     count_q = select(func.count()).select_from(q.subquery())
     total = (await db.execute(count_q)).scalar()
     q = q.order_by(SellerProduct.created_at.desc()).offset((page - 1) * limit).limit(limit)
