@@ -48,10 +48,8 @@ const useOrderStore = create(
         } catch { return [] }
       },
 
-      updateOrderStatus: async (orderId, status, transactionPassword) => {
-        const payload = { status }
-        if (transactionPassword) payload.transactionPassword = transactionPassword
-        const { data } = await api.put(`/orders/${orderId}/status`, payload)
+      updateOrderStatus: async (orderId, status) => {
+        const { data } = await api.put(`/orders/${orderId}/status`, { status })
         set((state) => ({
           orders: state.orders.map(o => o.id === orderId ? data.data.order : o),
           adminOrders: state.adminOrders.map(o => o.id === orderId ? data.data.order : o),

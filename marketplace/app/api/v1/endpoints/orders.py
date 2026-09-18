@@ -262,19 +262,6 @@ async def update_status(order_id: str, data: StatusUpdate,
         if new_idx <= current_idx:
             return err(f"Cannot move status backward from {o.status.value} to {new_status.value}", 400)
 
-    # Require and verify transaction password for seller/admin order approvals
-    if user.role in (UserRole.seller, UserRole.admin):
-        if user.hashed_txn_password:
-            if not data.transactionPassword:
-                return err("Transaction password is required to approve or accept this order", 400)
-            if not verify_password(data.transactionPassword, user.hashed_txn_password):
-                return err("Incorrect transaction password", 400)
-        else:
-            if not data.transactionPassword or len(data.transactionPassword.strip()) < 4:
-                return err("Transaction password is required. Please set a transaction password to approve this order", 400)
-            user.hashed_txn_password = hash_password(data.transactionPassword.strip())
-            db.add(user)
-
     o.status = new_status
     o.updated_at = datetime.utcnow()
     db.add(o)

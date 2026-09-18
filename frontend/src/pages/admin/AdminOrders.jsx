@@ -5,7 +5,6 @@ import toast from 'react-hot-toast'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
-import TransactionPasswordModal from '../../components/common/TransactionPasswordModal'
 import useOrderStore from '../../store/useOrderStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 
@@ -17,7 +16,6 @@ export default function AdminOrders() {
   const [loading, setLoading] = useState(true)
   const [updatingOrderId, setUpdatingOrderId] = useState(null)
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [pendingApproval, setPendingApproval] = useState(null)
 
   const orders = useOrderStore(state => state.adminOrders)
   const fetchAdminOrders = useOrderStore(state => state.fetchAdminOrders)
@@ -33,16 +31,10 @@ export default function AdminOrders() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter])
 
-  const openApprovalModal = (orderId, newStatus) => {
-    setPendingApproval({ orderId, newStatus })
-  }
-
-  const handleConfirmApproval = async (transactionPassword) => {
-    if (!pendingApproval) return
-    const { orderId, newStatus } = pendingApproval
+  const handleUpdateStatus = async (orderId, newStatus) => {
     setUpdatingOrderId(orderId)
     try {
-      const updated = await useOrderStore.getState().updateOrderStatus(orderId, newStatus, transactionPassword)
+      const updated = await useOrderStore.getState().updateOrderStatus(orderId, newStatus)
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder(prev => ({
           ...prev,
@@ -56,8 +48,11 @@ export default function AdminOrders() {
           })) || updated.items
         }))
       }
-      toast.success(`Order #${orderId} approved and marked as ${statusMeta(newStatus).label}`)
-      setPendingApproval(null)
+      if (newStatus === 'Confirmed') {
+        toast.success(`Order #${orderId} successfully placed / confirmed!`)
+      } else {
+        toast.success(`Order #${orderId} marked as ${statusMeta(newStatus).label}`)
+      }
       await load()
     } catch (error) {
       toast.error(error?.response?.data?.message || 'Failed to update order status')
@@ -155,7 +150,7 @@ export default function AdminOrders() {
                             variant="primary"
                             className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
                             isLoading={updatingOrderId === order.id}
-                            onClick={() => openApprovalModal(order.id, 'Confirmed')}
+                            onClick={() => handleUpdateStatus(order.id, 'Confirmed')}
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Place / Confirm Order
                           </Button>
@@ -166,7 +161,7 @@ export default function AdminOrders() {
                             variant="outline"
                             className="gap-1 text-xs"
                             isLoading={updatingOrderId === order.id}
-                            onClick={() => openApprovalModal(order.id, nextOpt)}
+                            onClick={() => handleUpdateStatus(order.id, nextOpt)}
                           >
                             Mark {statusMeta(nextOpt).label}
                           </Button>
@@ -236,7 +231,7 @@ export default function AdminOrders() {
                                 : ''
                             }
                             isLoading={updatingOrderId === selectedOrder.id}
-                            onClick={() => openApprovalModal(selectedOrder.id, opt)}
+                            onClick={() => handleUpdateStatus(selectedOrder.id, opt)}
                           >
                             {opt === 'Confirmed' ? '✓ Place / Confirm Order' : `Mark ${statusMeta(opt).label}`}
                           </Button>
@@ -288,26 +283,16 @@ export default function AdminOrders() {
             </div>
 
             <div className="border-t border-dark-border pt-4 space-y-1 text-sm">
-              <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>${selectedOrder.subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between text-slate-400"><span>Tax</span><span>${selectedOrder.tax.toFixed(2)}</span></div>
-              <div className="flex justify-between text-slate-400"><span>Shipping</span><span>${selectedOrder.shipping.toFixed(2)}</span></div>
+              <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>${(selectedOrder.subtotal || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between text-slate-400"><span>Tax</span><span>${(selectedOrder.tax || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between text-slate-400"><span>Shipping</span><span>${(selectedOrder.shipping || 0).toFixed(2)}</span></div>
               <div className="flex justify-between font-bold text-lg pt-2 border-t border-dark-border mt-2">
-                <span>Total</span><span>${selectedOrder.total.toFixed(2)}</span>
+                <span>Total</span><span>${(selectedOrder.total || 0).toFixed(2)}</span>
               </div>
             </div>
           </motion.div>
         </div>
       )}
-
-      {/* Transaction Password Verification Modal */}
-      <TransactionPasswordModal
-        isOpen={!!pendingApproval}
-        onClose={() => setPendingApproval(null)}
-        onConfirm={handleConfirmApproval}
-        orderId={pendingApproval?.orderId}
-        targetStatusLabel={pendingApproval ? statusMeta(pendingApproval.newStatus).label : ''}
-        isLoading={updatingOrderId === pendingApproval?.orderId}
-      />
     </div>
   )
 }

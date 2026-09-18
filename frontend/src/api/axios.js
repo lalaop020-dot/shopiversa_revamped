@@ -2,10 +2,12 @@ import axios from 'axios'
 
 const getBaseURL = () => {
   const envUrl = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL
-  if (envUrl && envUrl.includes('railway.app')) {
-    return '/api/v1'
+  if (!envUrl) return '/api/v1'
+  let url = envUrl.trim()
+  if (!url.endsWith('/api/v1') && !url.endsWith('/api/v1/')) {
+    url = url.endsWith('/') ? `${url}api/v1` : `${url}/api/v1`
   }
-  return envUrl || '/api/v1'
+  return url
 }
 
 const api = axios.create({

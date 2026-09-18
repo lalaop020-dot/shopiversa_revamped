@@ -22,8 +22,8 @@ const step1Schema = z.object({
 })
 
 const step2Schema = z.object({
-  docType: z.enum(['id_card', 'passport'], { required_error: 'Please select a document type' }),
-  docImage: z.string().min(1, 'Please upload a photo of your document'),
+  docFrontImage: z.string().min(1, 'Please upload the front view of your official document'),
+  docBackImage: z.string().min(1, 'Please upload the back view of your official document'),
 })
 
 // ── Progress Step Indicator ────────────────────────────────────
@@ -79,42 +79,8 @@ function StepIndicator({ current }) {
   )
 }
 
-// ── Document Type Card ─────────────────────────────────────────
-function DocTypeCard({ type, label, description, icon: Icon, selected, onSelect }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(type)}
-      className={[
-        'relative flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all duration-300 w-full',
-        selected
-          ? 'border-primary bg-primary/10 shadow-lg shadow-primary/20'
-          : 'border-dark-border bg-dark-bg hover:border-primary/40 hover:bg-dark-card',
-      ].join(' ')}
-    >
-      <div
-        className={[
-          'w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors duration-300',
-          selected ? 'bg-primary text-white' : 'bg-dark-card text-slate-400',
-        ].join(' ')}
-      >
-        <Icon className="w-5 h-5" />
-      </div>
-      <div>
-        <p className={['font-semibold text-sm', selected ? 'text-white' : 'text-slate-300'].join(' ')}>
-          {label}
-        </p>
-        <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-      </div>
-      {selected && (
-        <CheckCircle2 className="w-4 h-4 text-primary absolute top-3 right-3" />
-      )}
-    </button>
-  )
-}
-
 // ── Image Upload Zone ──────────────────────────────────────────
-function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
+function ImageUploadZone({ title, preview, onUpload, onClear, error, badgeText = 'Document uploaded' }) {
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
@@ -138,13 +104,16 @@ function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
     handleFile(e.dataTransfer.files[0])
   }, [handleFile])
 
-  const docLabel = docType === 'passport' ? 'Passport' : 'Identity Card'
-
   return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium text-slate-300">
-        Upload {docLabel} Photo
-      </label>
+    <div className="space-y-2 flex-1">
+      {title && (
+        <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+          <span>{title}</span>
+          {preview && (
+            <span className="text-[10px] text-secondary font-semibold uppercase tracking-wider bg-secondary/10 px-2 py-0.5 rounded border border-secondary/20">Uploaded ✓</span>
+          )}
+        </label>
+      )}
 
       {preview ? (
         // ── Preview ──────────────────────────────────────────
@@ -153,19 +122,19 @@ function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
           <div className="relative">
             <img
               src={preview}
-              alt="KYC Document"
-              className="w-full object-cover max-h-52"
+              alt={title || "KYC Document"}
+              className="w-full object-cover max-h-48"
             />
             {/* Corner brackets overlay */}
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-2 left-2 w-6 h-6 border-t-2 border-l-2 border-primary rounded-tl-sm" />
-              <div className="absolute top-2 right-2 w-6 h-6 border-t-2 border-r-2 border-primary rounded-tr-sm" />
-              <div className="absolute bottom-2 left-2 w-6 h-6 border-b-2 border-l-2 border-primary rounded-bl-sm" />
-              <div className="absolute bottom-2 right-2 w-6 h-6 border-b-2 border-r-2 border-primary rounded-br-sm" />
+              <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-primary rounded-tl-sm" />
+              <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-primary rounded-tr-sm" />
+              <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-primary rounded-bl-sm" />
+              <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-primary rounded-br-sm" />
             </div>
             {/* Green verified badge */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-secondary/90 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 font-medium">
-              <CheckCircle2 className="w-3 h-3" /> Document uploaded
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-secondary/90 backdrop-blur-sm text-white text-[11px] px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-md">
+              <CheckCircle2 className="w-3 h-3" /> {badgeText}
             </div>
           </div>
           {/* Remove button */}
@@ -173,6 +142,7 @@ function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
             type="button"
             onClick={onClear}
             className="absolute top-2 right-2 w-7 h-7 rounded-full bg-dark-bg/80 backdrop-blur-sm border border-dark-border flex items-center justify-center text-slate-400 hover:text-red-400 hover:border-red-500/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
+            title="Remove image"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -188,7 +158,7 @@ function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           className={[
-            'relative flex flex-col items-center justify-center gap-3 py-10 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-300 group',
+            'relative flex flex-col items-center justify-center gap-2.5 py-8 px-4 rounded-xl border-2 border-dashed cursor-pointer transition-all duration-300 group min-h-[150px]',
             dragging
               ? 'border-primary bg-primary/10 scale-[1.01]'
               : error
@@ -198,25 +168,25 @@ function ImageUploadZone({ preview, onUpload, onClear, error, docType }) {
         >
           {/* Animated icon container */}
           <div className={[
-            'w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300',
+            'w-11 h-11 rounded-xl flex items-center justify-center transition-all duration-300',
             dragging ? 'bg-primary/20 scale-110' : 'bg-dark-card group-hover:bg-primary/10 group-hover:scale-105',
           ].join(' ')}>
             {dragging
-              ? <UploadCloud className="w-7 h-7 text-primary" />
-              : <ImageIcon className="w-7 h-7 text-slate-500 group-hover:text-primary transition-colors duration-300" />
+              ? <UploadCloud className="w-6 h-6 text-primary" />
+              : <ImageIcon className="w-6 h-6 text-slate-500 group-hover:text-primary transition-colors duration-300" />
             }
           </div>
           <div className="text-center">
-            <p className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
-              {dragging ? 'Drop it here!' : 'Click or drag & drop'}
+            <p className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors">
+              {dragging ? 'Drop image here' : title || 'Click or drag & drop'}
             </p>
-            <p className="text-xs text-slate-500 mt-0.5">PNG, JPG, WEBP — max 5 MB</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">PNG, JPG, WEBP — max 5 MB</p>
           </div>
           {/* Subtle corner decorations */}
-          <div className="absolute top-2 left-2 w-4 h-4 border-t border-l border-dark-border rounded-tl-sm opacity-60" />
-          <div className="absolute top-2 right-2 w-4 h-4 border-t border-r border-dark-border rounded-tr-sm opacity-60" />
-          <div className="absolute bottom-2 left-2 w-4 h-4 border-b border-l border-dark-border rounded-bl-sm opacity-60" />
-          <div className="absolute bottom-2 right-2 w-4 h-4 border-b border-r border-dark-border rounded-br-sm opacity-60" />
+          <div className="absolute top-2 left-2 w-3.5 h-3.5 border-t border-l border-dark-border rounded-tl-sm opacity-60" />
+          <div className="absolute top-2 right-2 w-3.5 h-3.5 border-t border-r border-dark-border rounded-tr-sm opacity-60" />
+          <div className="absolute bottom-2 left-2 w-3.5 h-3.5 border-b border-l border-dark-border rounded-bl-sm opacity-60" />
+          <div className="absolute bottom-2 right-2 w-3.5 h-3.5 border-b border-r border-dark-border rounded-br-sm opacity-60" />
         </div>
       )}
 
@@ -445,8 +415,8 @@ export default function SellerRegister() {
   const [profilePic, setProfilePic] = useState('')
 
   // KYC state (frontend only — not sent to backend)
-  const [docType, setDocType] = useState('')
-  const [docImage, setDocImage] = useState('')
+  const [docFrontImage, setDocFrontImage] = useState('')
+  const [docBackImage, setDocBackImage] = useState('')
   const [kycErrors, setKycErrors] = useState({})
 
   // CAPTCHA state
@@ -480,8 +450,8 @@ export default function SellerRegister() {
   // ── KYC Validation ────────────────────────────────────────
   const validateKyc = () => {
     const errs = {}
-    if (!docType) errs.docType = 'Please select a document type'
-    if (!docImage) errs.docImage = 'Please upload a photo of your document'
+    if (!docFrontImage) errs.docFrontImage = 'Please upload the front view of your official document'
+    if (!docBackImage) errs.docBackImage = 'Please upload the back view of your official document'
     if (!captchaPassed) errs.captcha = 'Please complete the CAPTCHA verification'
     setKycErrors(errs)
     return Object.keys(errs).length === 0
@@ -608,53 +578,48 @@ export default function SellerRegister() {
             </div>
           </div>
 
-          {/* Document Type Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-300">
-              Select Document Type
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <DocTypeCard
-                type="id_card"
-                label="Identity Card"
-                description="National ID / Government issued card"
-                icon={CreditCard}
-                selected={docType === 'id_card'}
-                onSelect={(t) => { setDocType(t); setKycErrors(p => ({ ...p, docType: '' })) }}
+          {/* Official Document Upload Section */}
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-semibold text-white flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-primary" />
+                Upload the official documents(ID card, Driving license)
+              </label>
+              <p className="text-xs text-slate-400 mt-1">
+                Please upload clear front view and back view pictures of your official document.
+              </p>
+            </div>
+
+            {/* Dual Upload Grid (Front & Back View) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ImageUploadZone
+                title="Front View Picture"
+                badgeText="Front view uploaded"
+                preview={docFrontImage}
+                onUpload={(img) => { setDocFrontImage(img); setKycErrors(p => ({ ...p, docFrontImage: '' })) }}
+                onClear={() => setDocFrontImage('')}
+                error={kycErrors.docFrontImage}
               />
-              <DocTypeCard
-                type="passport"
-                label="Passport"
-                description="International travel document"
-                icon={BookOpen}
-                selected={docType === 'passport'}
-                onSelect={(t) => { setDocType(t); setKycErrors(p => ({ ...p, docType: '' })) }}
+
+              <ImageUploadZone
+                title="Back View Picture"
+                badgeText="Back view uploaded"
+                preview={docBackImage}
+                onUpload={(img) => { setDocBackImage(img); setKycErrors(p => ({ ...p, docBackImage: '' })) }}
+                onClear={() => setDocBackImage('')}
+                error={kycErrors.docBackImage}
               />
             </div>
-            {kycErrors.docType && (
-              <span className="text-xs text-red-500 flex items-center gap-1">
-                <X className="w-3 h-3" /> {kycErrors.docType}
-              </span>
-            )}
           </div>
 
-          {/* Image Upload */}
-          <ImageUploadZone
-            preview={docImage}
-            docType={docType}
-            onUpload={(img) => { setDocImage(img); setKycErrors(p => ({ ...p, docImage: '' })) }}
-            onClear={() => setDocImage('')}
-            error={kycErrors.docImage}
-          />
-
           {/* Upload Guidelines */}
-          {!docImage && (
+          {(!docFrontImage || !docBackImage) && (
             <div className="space-y-1.5 p-3 rounded-xl bg-dark-card border border-dark-border">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Photo guidelines</p>
               {[
                 'Place document on a flat, well-lit surface',
-                'All four corners of the document must be visible',
-                'Ensure text is sharp and readable — no blur',
+                'All four corners of both front and back sides must be visible',
+                'Ensure text and details are sharp and readable — no blur',
                 'Accepted formats: JPG, PNG, WEBP (max 5 MB)',
               ].map((tip) => (
                 <div key={tip} className="flex items-start gap-2 text-xs text-slate-500">
