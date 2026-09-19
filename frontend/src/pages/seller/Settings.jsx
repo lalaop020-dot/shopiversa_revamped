@@ -17,22 +17,28 @@ export default function ShopSettings() {
   const updateAdminCredentials = useAuthStore((state) => state.updateAdminCredentials)
 
   // Admin wallets state
-  const adminWallets = useAuthStore((state) => state.adminWallets) || { usdt: '', btc: '' }
+  const adminWallets = useAuthStore((state) => state.adminWallets) || { 
+    usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
+    eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
+    bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4' 
+  }
   const updateAdminWallets = useAuthStore((state) => state.updateAdminWallets)
 
   const [adminMailInput, setAdminMailInput] = useState(user?.email || '')
   const [adminNewPassInput, setAdminNewPassInput] = useState('')
   const [adminConfirmPassInput, setAdminConfirmPassInput] = useState('')
 
-  const [adminUsdtInput, setAdminUsdtInput] = useState(adminWallets.usdt)
-  const [adminBtcInput, setAdminBtcInput] = useState(adminWallets.btc)
+  const [adminUsdtInput, setAdminUsdtInput] = useState(adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
+  const [adminEthInput, setAdminEthInput] = useState(adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
+  const [adminBnbInput, setAdminBnbInput] = useState(adminWallets.bnb || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
 
   // Seller profile states
   const [shopName, setShopName] = useState(user?.shopName || 'Shopiversa Official Store')
   const [shopEmail, setShopEmail] = useState(user?.shopEmail || 'shop@example.com')
   const [shopDesc, setShopDesc] = useState(user?.shopDesc || 'Welcome to the official Shopiversa store. We provide high-quality digital assets and electronics.')
   const [usdtAddress, setUsdtAddress] = useState(user?.usdtAddress || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
-  const [btcAddress, setBtcAddress] = useState(user?.btcAddress || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+  const [ethAddress, setEthAddress] = useState(user?.ethAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
+  const [bnbAddress, setBnbAddress] = useState(user?.bnbAddress || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
   
   const [activeTab, setActiveTab] = useState('shop')
 
@@ -61,12 +67,12 @@ export default function ShopSettings() {
           return
         }
         await updateAdminCredentials(adminMailInput, adminNewPassInput)
-        await updateAdminWallets(adminUsdtInput, adminBtcInput)
+        await updateAdminWallets(adminUsdtInput, adminEthInput, adminBnbInput)
         setAdminNewPassInput('')
         setAdminConfirmPassInput('')
         toast.success('Admin settings updated successfully!')
       } else {
-        await updateUser({ shopName, shopEmail, shopDesc, usdtAddress, btcAddress })
+        await updateUser({ shopName, shopEmail, shopDesc, usdtAddress, ethAddress, bnbAddress })
         toast.success('Settings saved successfully!')
       }
     } catch (error) {
@@ -126,7 +132,7 @@ export default function ShopSettings() {
       <div className="space-y-8 animate-fade-in max-w-4xl">
         <div>
           <h1 className="text-3xl font-bold mb-2">Admin Settings</h1>
-          <p className="text-slate-400">Configure default admin credentials, security preferences, and deposit wallets.</p>
+          <p className="text-slate-400">Configure default admin credentials, security preferences, and deposit crypto wallets.</p>
         </div>
 
         <Card className="space-y-6">
@@ -161,22 +167,27 @@ export default function ShopSettings() {
 
         <Card className="space-y-6">
           <h3 className="font-bold text-lg flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-primary" /> Global Deposit Wallets Configuration
+            <Wallet className="w-5 h-5 text-primary" /> Global Crypto Deposit Wallets Configuration
           </h3>
           <p className="text-sm text-slate-400">
-            These addresses will be displayed to sellers when they attempt to make a manual crypto deposit into the platform.
+            These crypto wallet addresses will be displayed to sellers when they make a deposit into the platform.
           </p>
           
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-4">
             <Input 
-              label="Platform USDT Address (TRC20)" 
+              label="USDT Address (TRC20)" 
               value={adminUsdtInput} 
               onChange={(e) => setAdminUsdtInput(e.target.value)} 
             />
             <Input 
-              label="Platform BTC Address" 
-              value={adminBtcInput} 
-              onChange={(e) => setAdminBtcInput(e.target.value)} 
+              label="ETH Address (TRC20)" 
+              value={adminEthInput} 
+              onChange={(e) => setAdminEthInput(e.target.value)} 
+            />
+            <Input 
+              label="BNB Address (BEP20)" 
+              value={adminBnbInput} 
+              onChange={(e) => setAdminBnbInput(e.target.value)} 
             />
           </div>
 
@@ -245,8 +256,8 @@ export default function ShopSettings() {
                     value={shopEmail} 
                     onChange={(e) => setShopEmail(e.target.value)} 
                   />
-                  <div className="md:col-span-2 space-y-1.5">
-                    <label className="text-sm font-medium text-slate-300">Shop Description</label>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-2">Shop Description</label>
                     <textarea 
                       className="input-field min-h-[120px] py-3"
                       value={shopDesc}
@@ -264,7 +275,7 @@ export default function ShopSettings() {
                     <Wallet className="w-5 h-5 text-primary mt-1" />
                     <div>
                       <h4 className="font-bold text-sm text-primary">Withdrawal Configuration</h4>
-                      <p className="text-xs text-slate-400 mt-1">Configure your primary wallet for automated and manual withdrawals.</p>
+                      <p className="text-xs text-slate-400 mt-1">Configure your crypto wallet addresses for payouts.</p>
                     </div>
                   </div>
                 </div>
@@ -276,9 +287,14 @@ export default function ShopSettings() {
                     onChange={(e) => setUsdtAddress(e.target.value)} 
                   />
                   <Input 
-                    label="Bitcoin Wallet Address" 
-                    value={btcAddress} 
-                    onChange={(e) => setBtcAddress(e.target.value)} 
+                    label="ETH Wallet Address (TRC20)" 
+                    value={ethAddress} 
+                    onChange={(e) => setEthAddress(e.target.value)} 
+                  />
+                  <Input 
+                    label="BNB Wallet Address (BEP20)" 
+                    value={bnbAddress} 
+                    onChange={(e) => setBnbAddress(e.target.value)} 
                   />
                   <div className="pt-4 flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded border-dark-border bg-dark-bg accent-primary" defaultChecked />

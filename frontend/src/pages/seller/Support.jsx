@@ -1,85 +1,132 @@
-import { useState } from 'react'
-import { Plus, MessageCircle, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react'
-import { Button } from '../../components/common/Button'
+import { useState, useEffect, useRef } from 'react'
+import { MessageSquare, Send, Clock, ShieldCheck, Plus, Ticket, X } from 'lucide-react'
 import { Card } from '../../components/common/Card'
-import { Input } from '../../components/common/Input'
+import { Button } from '../../components/common/Button'
+import { ChatMessageBubble } from '../../components/ChatMessageBubble'
+import useAuthStore from '../../store/useAuthStore'
+import useChatStore from '../../store/useChatStore'
 import toast from 'react-hot-toast'
 
+/**
+ * Seller Support page — a dedicated chat channel with admin support.
+ * Uses the same ChatStore/API as the rest of the messaging system so that
+ * every message the seller sends here is immediately visible in AdminSupport.
+ */
 export default function SupportTickets() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [tickets, setTickets] = useState([
-    { id: 'TKT-1001', subject: 'Wallet withdrawal pending', status: 'Open', priority: 'High', date: '2 mins ago' },
-    { id: 'TKT-1002', subject: 'Inquiry about Gold package', status: 'Closed', priority: 'Medium', date: '2 days ago' },
-    { id: 'TKT-1003', subject: 'API connection issues', status: 'In Progress', priority: 'Critical', date: '1 hour ago' },
-  ])
+  const currentUserId = useAuthStore((state) => state.user?.id)
+  const conversationsList = useChatStore((state) => state.conversationsList)
+  const fetchConversations = useChatStore((state) => state.fetchConversations)
+  const conversations = useChatStore((state) => state.conversations)
+  const fetchMessages = useChatStore((state) => state.fetchMessages)
+  const sendMessage = useChatStore((state) => state.sendMessage)
 
-  // Form states
-  const [subject, setSubject] = useState('')
-  const [details, setDetails] = useState('')
-  const [priority, setPriority] = useState('Medium')
-  const [category, setCategory] = useState('Wallet/Payments')
-  const [searchTerm, setSearchTerm] = useState('')
+  const [replyText, setReplyText] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [showQuickModal, setShowQuickModal] = useState(false)
+  const [quickMsg, setQuickMsg] = useState('')
+  const scrollRef = useRef(null)
 
-  const handleCreateTicket = (e) => {
+  // Load conversations on mount so we can find the admin contact.
+  useEffect(() => {
+    fetchConversations()
+  }, [fetchConversations])
+
+  // Identify the admin conversation partner.
+  const adminConv = conversationsList.find((c) => c.role === 'admin')
+  const adminEmail = adminConv?.email || null
+
+  useEffect(() => {
+    if (adminEmail) fetchMessages(adminEmail)
+  }, [adminEmail, fetchMessages])
+
+  const currentMessages = adminEmail ? (conversations[adminEmail] || []) : []
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [currentMessages])
+
+  const handleSend = async (e) => {
     e.preventDefault()
-    if (!subject.trim() || !details.trim()) {
-      toast.error('Please fill in all fields')
+    if (!replyText.trim()) return
+    if (!adminEmail) {
+      toast.error('Support contact not found. Please try again.')
       return
     }
-
-    const newTicket = {
-      id: `TKT-${Math.floor(1004 + Math.random() * 9000)}`,
-      subject,
-      status: 'Open',
-      priority,
-      date: 'Just now'
+    setIsSending(true)
+    try {
+      await sendMessage(adminEmail, replyText)
+      setReplyText('')
+    } catch {
+      toast.error('Failed to send message')
+    } finally {
+      setIsSending(false)
     }
-
-    setTickets([newTicket, ...tickets])
-    toast.success('Ticket created successfully!')
-    setSubject('')
-    setDetails('')
-    setPriority('Medium')
-    setIsModalOpen(false)
   }
 
-  const filteredTickets = tickets.filter(t => 
-    t.subject.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    t.id.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const handleQuickSend = async (e) => {
+    e.preventDefault()
+    if (!quickMsg.trim()) return
+    if (!adminEmail) {
+      toast.error('Support contact not found.')
+      return
+    }
+    setIsSending(true)
+    try {
+      await sendMessage(adminEmail, quickMsg)
+      setQuickMsg('')
+      setShowQuickModal(false)
+      toast.success('Message sent to support!')
+    } catch {
+      toast.error('Failed to send')
+    } finally {
+      setIsSending(false)
+    }
+  }
 
-  const openTicketsCount = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length
-  const closedTicketsCount = tickets.filter(t => t.status === 'Closed').length
+  const quickTopics = [
+    '💰 Wallet withdrawal is pending',
+    '📦 Issue with my product listing',
+    '🔑 Account access problem',
+    '📊 Package upgrade inquiry',
+    '🚚 Order fulfillment question',
+  ]
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Help & Support</h1>
-          <p className="text-slate-400">Get assistance with your store and account.</p>
+          <h1 className="text-3xl font-bold mb-2">Help &amp; Support</h1>
+          <p className="text-slate-400">
+            Chat directly with our admin support team. We typically reply within minutes.
+          </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="w-4 h-4" /> Create Ticket
+        <Button onClick={() => setShowQuickModal(true)}>
+          <Plus className="w-4 h-4" /> Quick Message
         </Button>
       </div>
 
+      {/* Status cards */}
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="flex items-center gap-4 border-l-4 border-primary">
           <div className="p-3 bg-primary/10 text-primary rounded-xl">
-            <MessageCircle className="w-6 h-6" />
+            <MessageSquare className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold">{tickets.length}</div>
-            <div className="text-xs text-slate-500 uppercase tracking-widest">Total Tickets</div>
+            <div className="text-2xl font-bold">{currentMessages.length}</div>
+            <div className="text-xs text-slate-500 uppercase tracking-widest">Messages</div>
           </div>
         </Card>
         <Card className="flex items-center gap-4 border-l-4 border-green-500">
           <div className="p-3 bg-green-500/10 text-green-500 rounded-xl">
-            <CheckCircle2 className="w-6 h-6" />
+            <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold">{closedTicketsCount}</div>
-            <div className="text-xs text-slate-500 uppercase tracking-widest">Resolved</div>
+            <div className="text-2xl font-bold">Live</div>
+            <div className="text-xs text-slate-500 uppercase tracking-widest">Support Status</div>
           </div>
         </Card>
         <Card className="flex items-center gap-4 border-l-4 border-accent-gold">
@@ -87,129 +134,126 @@ export default function SupportTickets() {
             <Clock className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold">{openTicketsCount}</div>
-            <div className="text-xs text-slate-500 uppercase tracking-widest">Pending</div>
+            <div className="text-2xl font-bold">&lt; 5 min</div>
+            <div className="text-xs text-slate-500 uppercase tracking-widest">Avg Response</div>
           </div>
         </Card>
       </div>
 
-      <Card className="p-0 overflow-hidden">
-        <div className="p-6 border-b border-dark-border flex items-center justify-between">
-          <h3 className="font-bold">Recent Tickets</h3>
-          <div className="relative w-64">
-            <Input 
-              placeholder="Search tickets..." 
-              className="pl-10 h-9 text-xs" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+      {/* Main Chat Panel */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Quick Topic Shortcuts */}
+        <Card className="lg:col-span-1 p-0 overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-dark-border">
+            <h3 className="font-bold flex items-center gap-2 text-sm">
+              <Ticket className="w-4 h-4 text-primary" />
+              Common Topics
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Click to start a conversation</p>
           </div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-dark-bg text-slate-400 text-xs uppercase tracking-widest">
-              <tr>
-                <th className="px-6 py-4 font-medium">Ticket ID</th>
-                <th className="px-6 py-4 font-medium">Subject</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Priority</th>
-                <th className="px-6 py-4 font-medium">Last Update</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-dark-border">
-              {filteredTickets.map((t) => (
-                <tr key={t.id} className="hover:bg-white/5 transition-colors cursor-pointer group">
-                  <td className="px-6 py-4 font-mono text-sm group-hover:text-primary">{t.id}</td>
-                  <td className="px-6 py-4 text-sm font-medium">{t.subject}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      t.status === 'Open' ? 'bg-blue-500/10 text-blue-500' :
-                      t.status === 'Closed' ? 'bg-slate-500/10 text-slate-500' :
-                      'bg-accent-gold/10 text-accent-gold'
-                    }`}>
-                      {t.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                      <div className={`w-1.5 h-1.5 rounded-full ${
-                        t.priority === 'Critical' ? 'bg-red-500 shadow-lg shadow-red-500/50' :
-                        t.priority === 'High' ? 'bg-orange-500' : 'bg-slate-500'
-                      }`} />
-                      {t.priority}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{t.date}</td>
-                </tr>
-              ))}
-              {filteredTickets.length === 0 && (
-                <tr>
-                  <td colSpan="5" className="text-center py-10 text-slate-500">
-                    No tickets found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+          <div className="flex-grow p-3 space-y-2 overflow-y-auto">
+            {quickTopics.map((topic, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setReplyText(topic)
+                }}
+                className="w-full text-left text-xs px-4 py-3 rounded-xl border border-dark-border hover:border-primary hover:bg-primary/5 transition-all text-slate-300 hover:text-white"
+              >
+                {topic}
+              </button>
+            ))}
+          </div>
+          <div className="p-4 border-t border-dark-border">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              Admin support is online
+            </div>
+          </div>
+        </Card>
 
-      {/* Create Ticket Modal */}
-      {isModalOpen && (
+        {/* Chat Thread */}
+        <Card className="lg:col-span-2 p-0 flex flex-col overflow-hidden" style={{ height: '520px' }}>
+          {/* Thread Header */}
+          <div className="p-4 border-b border-dark-border flex items-center gap-3 bg-dark-bg/25">
+            <div className="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center font-bold">
+              S
+            </div>
+            <div>
+              <h4 className="font-bold text-sm">Shopiversa Support</h4>
+              <span className="text-[10px] text-green-500 uppercase font-bold tracking-widest flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" /> Online
+              </span>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div ref={scrollRef} className="flex-grow p-6 overflow-y-auto space-y-4 bg-dark-bg/10">
+            {/* Welcome bubble if no messages yet */}
+            {currentMessages.length === 0 && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+                  S
+                </div>
+                <div className="bg-dark-card border border-dark-border rounded-2xl rounded-tl-none px-4 py-3 max-w-sm">
+                  <p className="text-sm text-slate-300">
+                    👋 Hello! Welcome to Shopiversa Support. How can we help you today?
+                  </p>
+                  <span className="text-[10px] text-slate-500 mt-1 block">Support Team</span>
+                </div>
+              </div>
+            )}
+            {currentMessages.map((msg, index) => (
+              <ChatMessageBubble key={msg.id || index} msg={msg} isMe={msg.senderId === currentUserId} />
+            ))}
+          </div>
+
+          {/* Input */}
+          <form onSubmit={handleSend} className="p-4 border-t border-dark-border flex gap-3 bg-dark-bg/25">
+            <input
+              type="text"
+              placeholder="Type your message to support..."
+              className="input-field flex-grow py-3"
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              disabled={isSending}
+            />
+            <Button type="submit" className="flex items-center justify-center p-3" isLoading={isSending}>
+              <Send className="w-5 h-5" />
+            </Button>
+          </form>
+        </Card>
+      </div>
+
+      {/* Quick Message Modal */}
+      {showQuickModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowQuickModal(false)} />
           <Card className="w-full max-w-lg relative z-10 p-8">
-            <h2 className="text-2xl font-bold mb-6">Create Support Ticket</h2>
-            <form className="space-y-4" onSubmit={handleCreateTicket}>
-              <Input 
-                label="Subject" 
-                placeholder="Brief description of the issue" 
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                required 
-              />
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Quick Message to Support</h2>
+              <button onClick={() => setShowQuickModal(false)} className="p-2 hover:bg-dark-bg rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form className="space-y-4" onSubmit={handleQuickSend}>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-300">Issue Details</label>
-                <textarea 
-                  className="input-field min-h-[120px] py-3" 
-                  placeholder="Explain the problem in detail..." 
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                  required 
+                <label className="text-sm font-medium text-slate-300">Your Message</label>
+                <textarea
+                  className="input-field min-h-[120px] py-3"
+                  placeholder="Describe your issue or question..."
+                  value={quickMsg}
+                  onChange={(e) => setQuickMsg(e.target.value)}
+                  required
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-300">Priority</label>
-                  <select 
-                    className="input-field" 
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-300">Category</label>
-                  <select 
-                    className="input-field"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                  >
-                    <option>Wallet/Payments</option>
-                    <option>Product Import</option>
-                    <option>Account Security</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-4 pt-4">
-                <Button variant="outline" className="flex-grow" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                <Button type="submit" className="flex-grow">Submit Ticket</Button>
+              <div className="flex gap-4 pt-2">
+                <Button variant="outline" className="flex-grow" type="button" onClick={() => setShowQuickModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="flex-grow" isLoading={isSending}>
+                  Send to Support
+                </Button>
               </div>
             </form>
           </Card>

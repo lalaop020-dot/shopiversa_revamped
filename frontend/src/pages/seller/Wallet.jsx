@@ -11,26 +11,37 @@ import { motion } from 'framer-motion'
 export default function Wallet() {
   const { user } = useAuthStore()
   const email = user?.email || ''
-  const adminWallets = useAuthStore((state) => state.adminWallets) || { usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b' }
+  const adminWallets = useAuthStore((state) => state.adminWallets) || { 
+    usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
+    eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
+    bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4' 
+  }
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions)
   const { fetchBalance, addDepositRequest, addWithdrawalRequest, fetchTransactions } = usePlatformStore()
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
+  const [depositCrypto, setDepositCrypto] = useState('USDT') // USDT, ETH (TRC20), BNB
+  const [withdrawCrypto, setWithdrawCrypto] = useState('USDT') // USDT, ETH (TRC20), BNB
   const [copied, setCopied] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
   const [depositTxid, setDepositTxid] = useState('')
   const [proofFile, setProofFile] = useState(null)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawAddress, setWithdrawAddress] = useState('')
-  const [withdrawPass, setWithdrawPass] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     fetchBalance()
     fetchTransactions()
   }, [])
+
+  const activeAdminWallet = depositCrypto === 'ETH (TRC20)' 
+    ? (adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
+    : depositCrypto === 'BNB' 
+    ? (adminWallets.bnb || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
+    : (adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
 
   const stats = [
     { label: 'Total Balance', value: `$${Number(balances.balance).toFixed(2)}`, icon: WalletIcon, color: 'text-primary' },
@@ -40,9 +51,9 @@ export default function Wallet() {
   ]
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(adminWallets.usdt)
+    navigator.clipboard.writeText(activeAdminWallet)
     setCopied(true)
-    toast.success('Wallet address copied!')
+    toast.success(`${depositCrypto} address copied!`)
     setTimeout(() => setCopied(false), 2000)
   }
 
@@ -68,10 +79,11 @@ export default function Wallet() {
     if (!withdrawAddress) return toast.error('Wallet address required')
     setLoading(true)
     try {
-      const success = await addWithdrawalRequest(email, amt, withdrawAddress, withdrawPass)
+      const fullAddress = `[${withdrawCrypto}] ${withdrawAddress}`
+      const success = await addWithdrawalRequest(email, amt, fullAddress)
       if (success) {
-        toast.success('Withdrawal request submitted!')
-        setWithdrawAmount(''); setWithdrawAddress(''); setWithdrawPass('')
+        toast.success(`Withdrawal request (${withdrawCrypto}) submitted!`)
+        setWithdrawAmount(''); setWithdrawAddress('')
         setIsWithdrawModalOpen(false)
       } else {
         toast.error('Insufficient balance or request failed')
@@ -146,12 +158,34 @@ export default function Wallet() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md p-6 space-y-4">
             <h3 className="font-bold text-lg">Submit Deposit</h3>
-            <p className="text-slate-400 text-sm">Send crypto to this address first, then submit your TXID:</p>
-            <div className="flex items-center gap-2 bg-dark-bg rounded-lg p-3 font-mono text-xs break-all">
-              <span className="flex-1">{adminWallets.usdt}</span>
-              <button onClick={handleCopy}>{copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}</button>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Crypto Network</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['USDT', 'ETH (TRC20)', 'BNB'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setDepositCrypto(c)}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all ${
+                      depositCrypto === c
+                        ? 'bg-primary text-white border-primary shadow-md'
+                        : 'bg-dark-bg text-slate-400 border-dark-border hover:border-slate-600'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
             </div>
-            <form onSubmit={handleDepositSubmit} className="space-y-3">
+
+            <p className="text-slate-400 text-xs mt-2">Send <strong>{depositCrypto}</strong> to the platform address below, then enter your TXID:</p>
+            <div className="flex items-center gap-2 bg-dark-bg rounded-lg p-3 font-mono text-xs break-all border border-dark-border">
+              <span className="flex-1 text-slate-200">{activeAdminWallet}</span>
+              <button onClick={handleCopy} className="p-1 hover:text-primary transition-colors">
+                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <form onSubmit={handleDepositSubmit} className="space-y-3 pt-2">
               <Input label="Amount (USD)" type="number" placeholder="100" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} />
               <Input label="Transaction ID (TXID)" placeholder="Blockchain TXID" value={depositTxid} onChange={e => setDepositTxid(e.target.value)} />
               <div>
@@ -160,7 +194,7 @@ export default function Wallet() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1" type="button" onClick={() => setIsDepositModalOpen(false)}>Cancel</Button>
-                <Button className="flex-1" type="submit" isLoading={loading}>Submit</Button>
+                <Button className="flex-1" type="submit" isLoading={loading}>Submit Deposit</Button>
               </div>
             </form>
           </Card>
@@ -172,13 +206,36 @@ export default function Wallet() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-md p-6 space-y-4">
             <h3 className="font-bold text-lg">Request Withdrawal</h3>
-            <form onSubmit={handleWithdrawSubmit} className="space-y-3">
-              <Input label="Amount" type="number" placeholder="50" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
-              <Input label="Your Wallet Address (USDT TRC20)" placeholder="Txxxxx..." value={withdrawAddress} onChange={e => setWithdrawAddress(e.target.value)} />
-              <Input label="Transaction Password" type="password" placeholder="••••••" value={withdrawPass} onChange={e => setWithdrawPass(e.target.value)} />
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Withdrawal Crypto</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['USDT', 'ETH (TRC20)', 'BNB'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setWithdrawCrypto(c)}
+                    className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all ${
+                      withdrawCrypto === c
+                        ? 'bg-primary text-white border-primary shadow-md'
+                        : 'bg-dark-bg text-slate-400 border-dark-border hover:border-slate-600'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <form onSubmit={handleWithdrawSubmit} className="space-y-3 pt-2">
+              <Input label="Amount ($)" type="number" placeholder="50" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
+              <Input 
+                label={`Your ${withdrawCrypto} Wallet Address`} 
+                placeholder={withdrawCrypto === 'ETH (TRC20)' ? '0x...' : withdrawCrypto === 'BNB' ? 'bnb1...' : 'T.....'} 
+                value={withdrawAddress} 
+                onChange={e => setWithdrawAddress(e.target.value)} 
+              />
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1" type="button" onClick={() => setIsWithdrawModalOpen(false)}>Cancel</Button>
-                <Button className="flex-1" type="submit" isLoading={loading}>Request</Button>
+                <Button className="flex-1" type="submit" isLoading={loading}>Submit Request</Button>
               </div>
             </form>
           </Card>

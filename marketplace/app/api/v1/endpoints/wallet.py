@@ -135,13 +135,6 @@ class WithdrawIn(BaseModel):
 @router.post("/withdraw")
 async def request_withdrawal(data: WithdrawIn, user: User = Depends(seller_only),
                              db: AsyncSession = Depends(get_db)):
-    # Verify transaction password if set
-    if user.hashed_txn_password:
-        if not data.transactionPassword:
-            return err("Transaction password required", 403)
-        if not verify_password(data.transactionPassword, user.hashed_txn_password):
-            return err("Invalid transaction password", 403)
-
     bal = await get_or_create_balance(user.id, db, lock=True)
     if Decimal(str(data.amount)) > bal.withdrawable:
         return err("Insufficient withdrawable balance", 400)

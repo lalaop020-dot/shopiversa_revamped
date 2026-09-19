@@ -79,7 +79,7 @@ export default function DashboardLayout() {
     { icon: Package, label: 'Storeroom Control', path: `/admin/storeroom` },
     { icon: Store, label: 'Shop Approvals', path: `/admin/shops` },
     { icon: Wallet, label: 'Transactions', path: `/admin/transactions` },
-    { icon: Landmark, label: 'Bank Withdrawal', path: '/admin/withdrawal' },
+    { icon: Wallet, label: 'Revenue Withdrawal', path: '/admin/withdrawal' },
     { icon: Award, label: 'Packages', path: `/admin/packages` },
     { icon: MessageSquare, label: 'Support', path: `/admin/support` },
     { icon: Settings, label: 'Settings', path: `/admin/settings` },

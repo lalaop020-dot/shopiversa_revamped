@@ -408,21 +408,27 @@ async def unfreeze_package(seller_id: int, admin: User = Depends(admin_only),
     return ok({"success": True})
 
 
-# ── Admin Bank Withdrawals (platform revenue payout) ─
+# ── Admin Crypto Withdrawals (platform revenue payout) ────────
 
 class BankWithdrawalIn(BaseModel):
-    bankName: str
-    accountHolder: str
-    iban: str
+    cryptoType: Optional[str] = "USDT"
+    walletAddress: Optional[str] = None
+    bankName: Optional[str] = None
+    accountHolder: Optional[str] = None
+    iban: Optional[str] = None
     amount: float = Field(gt=0)
 
 
 def bank_withdrawal_dict(w: AdminBankWithdrawal) -> dict:
+    crypto_type = getattr(w, 'crypto_type', None) or w.bank_name or "USDT"
+    wallet_addr = getattr(w, 'wallet_address', None) or w.iban or ""
     return {
         "id": w.id,
-        "bankName": w.bank_name,
-        "accountHolder": w.account_holder,
-        "iban": w.iban,
+        "cryptoType": crypto_type,
+        "walletAddress": wallet_addr,
+        "bankName": crypto_type,
+        "accountHolder": w.account_holder or "Crypto Payout",
+        "iban": wallet_addr,
         "amount": float(w.amount),
         "status": w.status,
         "date": w.created_at.strftime("%Y-%m-%d"),
@@ -451,10 +457,17 @@ async def create_bank_withdrawal(data: BankWithdrawalIn, admin: User = Depends(a
     if Decimal(str(data.amount)) > available:
         return err("Insufficient available balance", 400)
 
+    crypto = data.cryptoType or data.bankName or "USDT"
+    wallet_addr = data.walletAddress or data.iban or ""
+
     w = AdminBankWithdrawal(
         id=await gen_unique_bank_withdrawal_id(db),
-        bank_name=data.bankName, account_holder=data.accountHolder,
-        iban=data.iban, amount=Decimal(str(data.amount)),
+        crypto_type=crypto,
+        wallet_address=wallet_addr,
+        bank_name=crypto,
+        account_holder="Crypto Payout",
+        iban=wallet_addr,
+        amount=Decimal(str(data.amount)),
     )
     db.add(w)
     await db.commit()

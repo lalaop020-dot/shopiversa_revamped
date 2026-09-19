@@ -1,13 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, Lock, Mail, ShieldAlert, ShoppingBag } from 'lucide-react'
 import { Card } from '../components/common/Card'
 import { Input } from '../components/common/Input'
 import { Button } from '../components/common/Button'
 import useAuthStore from '../store/useAuthStore'
+import useOrderStore from '../store/useOrderStore'
 import toast from 'react-hot-toast'
 
 export default function CustomerProfile() {
-  const { user, updateUser, changePassword } = useAuthStore()
+  const { user, role, updateUser, changePassword } = useAuthStore()
+  const userRole = role || user?.role
+  const isSeller = userRole === 'seller' || userRole === 'admin'
+
+  const orders = useOrderStore((state) => state.orders) || []
+  const totalOrders = orders.length
+  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled').length
+
+  useEffect(() => {
+    if (!isSeller) {
+      useOrderStore.getState().fetchMyOrders?.().catch(() => {})
+    }
+  }, [isSeller])
+
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [isSavingProfile, setIsSavingProfile] = useState(false)
@@ -65,22 +79,30 @@ export default function CustomerProfile() {
         {/* Profile Card */}
         <Card className="md:col-span-1 flex flex-col items-center text-center p-6 space-y-4">
           <div className="w-20 h-20 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-3xl border border-dark-border">
-            {user?.name?.[0] || 'C'}
+            {user?.name?.[0] || 'U'}
           </div>
           <div>
-            <h3 className="font-bold text-lg">{user?.name || 'Customer User'}</h3>
-            <p className="text-xs text-slate-500">{user?.email || 'customer@demo.com'}</p>
+            <h3 className="font-bold text-lg">{user?.name || 'User'}</h3>
+            <p className="text-xs text-slate-500">{user?.email || 'user@demo.com'}</p>
           </div>
-          <div className="w-full border-t border-dark-border pt-4 flex justify-around text-center">
-            <div>
-              <div className="font-bold text-primary">5</div>
-              <div className="text-[10px] text-slate-500 uppercase font-bold">Orders</div>
+          {isSeller ? (
+            <div className="w-full border-t border-dark-border pt-4 flex justify-center text-center">
+              <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-semibold rounded-full border border-primary/20 capitalize">
+                {userRole} Account
+              </span>
             </div>
-            <div>
-              <div className="font-bold text-green-500">1</div>
-              <div className="text-[10px] text-slate-500 uppercase font-bold">Active</div>
+          ) : (
+            <div className="w-full border-t border-dark-border pt-4 flex justify-around text-center">
+              <div>
+                <div className="font-bold text-primary">{totalOrders}</div>
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Orders</div>
+              </div>
+              <div>
+                <div className="font-bold text-green-500">{activeOrders}</div>
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Active</div>
+              </div>
             </div>
-          </div>
+          )}
         </Card>
 
         {/* Profile Edit Forms */}

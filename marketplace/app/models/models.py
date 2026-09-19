@@ -210,13 +210,15 @@ class Transaction(Base):
     seller = relationship("User", back_populates="transactions")
 
 
-# ── Admin Bank Withdrawal (platform revenue payout) ──
+# ── Admin Bank / Crypto Withdrawal (platform revenue payout) ──
 class AdminBankWithdrawal(Base):
     __tablename__ = "admin_bank_withdrawals"
     id = Column(String(20), primary_key=True)
-    bank_name = Column(String(200), nullable=False)
-    account_holder = Column(String(200), nullable=False)
-    iban = Column(String(100), nullable=False)
+    crypto_type = Column(String(50), nullable=True, default="USDT")
+    wallet_address = Column(String(500), nullable=True)
+    bank_name = Column(String(200), nullable=True)
+    account_holder = Column(String(200), nullable=True)
+    iban = Column(String(100), nullable=True)
     amount = Column(Numeric(18, 2), nullable=False)
     status = Column(String(30), default="Processing")
     created_at = Column(DateTime, default=datetime.utcnow)

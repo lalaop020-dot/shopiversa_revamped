@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Eye, ShoppingBag, RefreshCw, X, MapPin, CreditCard, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Search, Eye, ShoppingBag, RefreshCw, X, MapPin, CreditCard, ArrowRight, CheckCircle2, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore from '../../store/useOrderStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
+import AdminPlaceOrderModal from '../../components/admin/AdminPlaceOrderModal'
 
 const FILTERS = ['All', ...ORDER_FLOW, 'Cancelled']
 
@@ -16,6 +17,7 @@ export default function AdminOrders() {
   const [loading, setLoading] = useState(true)
   const [updatingOrderId, setUpdatingOrderId] = useState(null)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [isPlaceOrderOpen, setIsPlaceOrderOpen] = useState(false)
 
   const orders = useOrderStore(state => state.adminOrders)
   const fetchAdminOrders = useOrderStore(state => state.fetchAdminOrders)
@@ -79,7 +81,12 @@ export default function AdminOrders() {
           <h1 className="text-3xl font-bold mb-2">Orders Management</h1>
           <p className="text-slate-400">All customer orders across every seller on the platform.</p>
         </div>
-        <Button variant="outline" onClick={load} isLoading={loading}><RefreshCw className="w-4 h-4" /></Button>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => setIsPlaceOrderOpen(true)} className="gap-2 font-bold">
+            <Plus className="w-4 h-4" /> Place Order
+          </Button>
+          <Button variant="outline" onClick={load} isLoading={loading}><RefreshCw className="w-4 h-4" /></Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -293,6 +300,12 @@ export default function AdminOrders() {
           </motion.div>
         </div>
       )}
+
+      <AdminPlaceOrderModal
+        isOpen={isPlaceOrderOpen}
+        onClose={() => setIsPlaceOrderOpen(false)}
+        onSuccess={() => load()}
+      />
     </div>
   )
 }

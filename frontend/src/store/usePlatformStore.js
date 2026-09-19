@@ -56,10 +56,10 @@ const usePlatformStore = create(
       },
 
       // ── Withdrawal ───────────────────────────────
-      addWithdrawalRequest: async (email, amount, walletAddress, transactionPassword) => {
+      addWithdrawalRequest: async (email, amount, walletAddress) => {
         try {
           const { data } = await api.post('/wallet/withdraw', {
-            amount: parseFloat(amount), walletAddress, transactionPassword, method: 'USDT TRC20 / BTC'
+            amount: parseFloat(amount), walletAddress, method: 'Crypto (USDT / ETH / BNB)'
           })
           const tx = data.data.transaction
           set((state) => {
@@ -216,7 +216,7 @@ const usePlatformStore = create(
         } catch (e) { return [] }
       },
 
-      // Admin: platform revenue bank withdrawals
+      // Admin: platform revenue crypto withdrawals
       adminTotalWithdrawn: 0,
       adminBankWithdrawals: [],
       fetchAdminBankWithdrawals: async () => {
@@ -226,14 +226,20 @@ const usePlatformStore = create(
           return data.data
         } catch (e) { return { withdrawals: [], totalWithdrawn: 0 } }
       },
-      requestAdminBankWithdrawal: async (bankName, accountHolder, iban, amount) => {
-        const { data } = await api.post('/admin/bank-withdrawals', {
-          bankName, accountHolder, iban, amount: parseFloat(amount),
-        })
+      requestAdminBankWithdrawal: async (cryptoType, walletAddress, amount) => {
+        let payload
+        if (typeof cryptoType === 'object') {
+          payload = cryptoType
+        } else if (arguments.length === 3 && typeof walletAddress === 'string') {
+          payload = { cryptoType, walletAddress, amount: parseFloat(amount) }
+        } else {
+          payload = { bankName: cryptoType, accountHolder: walletAddress, iban: arguments[2], amount: parseFloat(arguments[3]) }
+        }
+        const { data } = await api.post('/admin/bank-withdrawals', payload)
         const w = data.data.withdrawal
         set((state) => ({
           adminBankWithdrawals: [w, ...state.adminBankWithdrawals],
-          adminTotalWithdrawn: state.adminTotalWithdrawn + w.amount,
+          adminTotalWithdrawn: state.adminTotalWithdrawn + (w.amount || 0),
         }))
         return w
       },

@@ -81,16 +81,21 @@ const useAuthStore = create(
         console.warn('registerUser is a local mock — use registerSeller/registerCustomer instead')
       },
 
-      // Admin wallet addresses stored locally (not sensitive data)
+      // Admin wallet addresses for crypto deposits (USDT, ETH TRC20, BNB)
       adminWallets: {
         usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
-        btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+        eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4'
       },
-      updateAdminWallets: (usdt, btc) => set((state) => ({
-        adminWallets: { ...state.adminWallets, usdt, btc }
+      updateAdminWallets: (usdt, eth, bnb) => set((state) => ({
+        adminWallets: {
+          usdt: usdt ?? state.adminWallets?.usdt ?? 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
+          eth: eth ?? state.adminWallets?.eth ?? '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+          bnb: bnb ?? state.adminWallets?.bnb ?? 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4'
+        }
       })),
     }),
-    { name: 'auth-storage-v2' }
+    { name: 'auth-storage-v3' }
   )
 )
 
