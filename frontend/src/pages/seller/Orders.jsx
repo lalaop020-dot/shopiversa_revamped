@@ -28,6 +28,7 @@ export default function SellerOrders() {
   const orders = rawOrders.map(o => ({
     id: o.id,
     customer: o.shippingAddress?.name || o.shippingAddress?.email || 'Unknown',
+    customerEmail: o.shippingAddress?.email || o.customerEmail || '',
     items: o.items.reduce((sum, i) => sum + i.quantity, 0),
     total: o.total,
     date: new Date(o.createdAt).toLocaleDateString(),
@@ -37,7 +38,8 @@ export default function SellerOrders() {
   const filteredOrders = orders
     .filter(order =>
       order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase())
+      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .filter(order => statusFilter === 'All' || order.status === statusFilter)
 
@@ -107,7 +109,10 @@ export default function SellerOrders() {
                 return (
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
-                    <td className="px-6 py-4 text-slate-300">{order.customer}</td>
+                    <td className="px-6 py-4 text-slate-300">
+                      <div>{order.customer}</div>
+                      {order.customerEmail && <div className="text-xs text-slate-500">{order.customerEmail}</div>}
+                    </td>
                     <td className="px-6 py-4 text-slate-400">{order.items}</td>
                     <td className="px-6 py-4 font-bold">${order.total.toFixed(2)}</td>
                     <td className="px-6 py-4 text-slate-400 text-sm">{order.date}</td>
@@ -202,6 +207,9 @@ export default function SellerOrders() {
                   <MapPin className="w-3.5 h-3.5" /> Shipping To
                 </div>
                 <div className="font-semibold">{selectedOrder.shippingAddress?.name}</div>
+                {(selectedOrder.shippingAddress?.email || selectedOrder.customerEmail) && (
+                  <div className="text-sm text-slate-400">{selectedOrder.shippingAddress?.email || selectedOrder.customerEmail}</div>
+                )}
                 <div className="text-sm text-slate-400 mt-1">
                   {selectedOrder.shippingAddress?.address}, {selectedOrder.shippingAddress?.city} {selectedOrder.shippingAddress?.zip}
                 </div>

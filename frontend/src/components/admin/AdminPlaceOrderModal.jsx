@@ -73,12 +73,22 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
     try {
       const { data } = await api.get('/marketplace/products?limit=100')
       const allProds = data?.data?.products || []
-      const sellerProds = allProds.filter(p => 
+      let sellerProds = allProds.filter(p => 
         (seller.id && p.sellerId === seller.id) ||
         (seller.email && p.sellerEmail === seller.email) ||
         (seller.shopName && p.shopName === seller.shopName)
       )
-      setProducts(sellerProds.length ? sellerProds : allProds.slice(0, 10))
+      if (!sellerProds.length) {
+        const storeRes = await api.get('/products?limit=100')
+        const storeProds = storeRes?.data?.data?.products || []
+        sellerProds = storeProds.map(p => ({
+          ...p,
+          sellerId: seller.id,
+          sellerEmail: seller.email,
+          shopName: seller.shopName || seller.name
+        }))
+      }
+      setProducts(sellerProds)
     } catch {
       setProducts([])
     } finally {
@@ -315,6 +325,13 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
                     </div>
                   )
                 })}
+              {products.length === 0 && !loadingProducts && (
+                <div className="text-center py-10 text-slate-400">
+                  <Store className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-sm">This seller shop has no listed products available.</p>
+                  <p className="text-xs text-slate-500 mt-1">Please select a different seller shop or import products for this seller first.</p>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-dark-border">

@@ -28,7 +28,14 @@ const useOrderStore = create(
           walletAddress: paymentProof.walletAddress,
         })
         const order = data.data.order
-        set((state) => ({ orders: [order, ...state.orders] }))
+        if (shippingInfo?.email) {
+          if (order.shippingAddress) order.shippingAddress.email = shippingInfo.email
+          order.customerEmail = shippingInfo.email
+        }
+        set((state) => ({
+          orders: [order, ...state.orders],
+          adminOrders: [order, ...state.adminOrders.filter(o => o.id !== order.id)]
+        }))
         return order
       },
 
@@ -50,11 +57,25 @@ const useOrderStore = create(
 
       updateOrderStatus: async (orderId, status) => {
         const { data } = await api.put(`/orders/${orderId}/status`, { status })
+        const updated = data.data.order
         set((state) => ({
-          orders: state.orders.map(o => o.id === orderId ? data.data.order : o),
-          adminOrders: state.adminOrders.map(o => o.id === orderId ? data.data.order : o),
+          orders: state.orders.map(o => o.id === orderId ? { ...o, ...updated } : o),
+          adminOrders: state.adminOrders.map(o => {
+            if (o.id !== orderId) return o
+            const mergedItems = (updated.items || []).map((item, idx) => ({
+              ...item,
+              sellerName: o.items?.[idx]?.sellerName || item.sellerName,
+              sellerEmail: o.items?.[idx]?.sellerEmail || item.sellerEmail,
+            }))
+            return {
+              ...o,
+              ...updated,
+              customerEmail: o.customerEmail || updated.customerEmail,
+              items: mergedItems.length ? mergedItems : updated.items,
+            }
+          }),
         }))
-        return data.data.order
+        return updated
       },
 
       // ── Admin: all orders across every seller ─────
