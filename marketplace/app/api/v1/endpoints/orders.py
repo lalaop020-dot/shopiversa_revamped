@@ -124,6 +124,31 @@ async def create_order(data: OrderIn, user: User = Depends(current_user),
         )
         sp = sp_result.scalar_one_or_none()
         if not sp:
+            # Fallback 1: Lookup by global Product ID
+            sp_result = await db.execute(
+                select(SellerProduct).where(SellerProduct.global_id == item.productId)
+                .order_by((SellerProduct.stock > 0).desc(), SellerProduct.price.asc())
+                .with_for_update()
+            )
+            sp = sp_result.scalars().first()
+        if not sp:
+            # Fallback 2: Check if global Product exists and auto-create house listing
+            gp_result = await db.execute(select(Product).where(Product.id == item.productId))
+            gp = gp_result.scalar_one_or_none()
+            if gp:
+                from app.api.v1.endpoints.products import get_or_create_house_seller, gen_unique_seller_product_id
+                house = await get_or_create_house_seller(db)
+                sp = SellerProduct(
+                    id=await gen_unique_seller_product_id(db),
+                    seller_id=house.id,
+                    global_id=gp.id,
+                    price=gp.price,
+                    stock=gp.stock,
+                )
+                db.add(sp)
+                await db.flush()
+
+        if not sp:
             return err(f"Product '{item.name}' is no longer available", 400)
         if item.quantity > sp.stock:
             return err(f"Insufficient stock for '{item.name}' (only {sp.stock} left)", 400)

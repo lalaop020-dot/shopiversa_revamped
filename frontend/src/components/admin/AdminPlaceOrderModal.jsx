@@ -366,7 +366,7 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
                   <option value="Credit Card">Credit Card</option>
                   <option value="USDT TRC20">USDT TRC20</option>
                   <option value="ETH TRC20">ETH TRC20</option>
-                  <option value="BNB BEP20">BNB BEP20</option>
+                  <option value="BTC">BTC</option>
                   <option value="Prepaid Payout">Prepaid Payout</option>
                 </select>
               </div>

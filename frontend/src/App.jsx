@@ -38,7 +38,6 @@ import AdminTransactions from './pages/admin/AdminTransactions'
 import AdminPackages from './pages/admin/AdminPackages'
 import AdminSupport from './pages/admin/AdminSupport'
 import AdminStoreroom from './pages/admin/AdminStoreroom'
-import AdminWithdrawal from './pages/admin/AdminWithdrawal'
 import { ProtectedRoute, RoleRedirect } from './routes/guards'
 
 function App() {
@@ -105,7 +104,6 @@ function App() {
             <Route path="orders" element={<AdminOrders />} />
             <Route path="shops" element={<SellerApprovals />} />
             <Route path="transactions" element={<AdminTransactions />} />
-            <Route path="withdrawal" element={<AdminWithdrawal />} />
             <Route path="packages" element={<AdminPackages />} />
             <Route path="support" element={<AdminSupport />} />
             <Route path="settings" element={<ShopSettings />} />

@@ -24,6 +24,7 @@ def user_dict(u: User) -> dict:
         "shopEmail": u.shop_email,
         "shopDesc": u.shop_desc,
         "usdtAddress": u.usdt_address,
+        "ethAddress": u.eth_address,
         "btcAddress": u.btc_address,
         "shopStatus": u.shop_status.value if u.shop_status else None,
     }
@@ -54,6 +55,7 @@ class ProfileUpdate(BaseModel):
     shopEmail: str | None = None
     shopDesc: str | None = None
     usdtAddress: str | None = None
+    ethAddress: str | None = None
     btcAddress: str | None = None
 
 
@@ -155,6 +157,7 @@ async def update_profile(data: ProfileUpdate, user: User = Depends(current_user)
     if data.shopEmail: user.shop_email = data.shopEmail
     if data.shopDesc: user.shop_desc = data.shopDesc
     if data.usdtAddress: user.usdt_address = data.usdtAddress
+    if data.ethAddress: user.eth_address = data.ethAddress
     if data.btcAddress: user.btc_address = data.btcAddress
     db.add(user)
     await db.commit()

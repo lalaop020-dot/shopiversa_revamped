@@ -14,7 +14,7 @@ export default function Wallet() {
   const adminWallets = useAuthStore((state) => state.adminWallets) || { 
     usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
     eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
-    bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4' 
+    btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' 
   }
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions)
@@ -22,8 +22,8 @@ export default function Wallet() {
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
-  const [depositCrypto, setDepositCrypto] = useState('USDT') // USDT, ETH (TRC20), BNB
-  const [withdrawCrypto, setWithdrawCrypto] = useState('USDT') // USDT, ETH (TRC20), BNB
+  const [depositCrypto, setDepositCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
+  const [withdrawCrypto, setWithdrawCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
   const [copied, setCopied] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
   const [depositTxid, setDepositTxid] = useState('')
@@ -39,8 +39,8 @@ export default function Wallet() {
 
   const activeAdminWallet = depositCrypto === 'ETH (TRC20)' 
     ? (adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-    : depositCrypto === 'BNB' 
-    ? (adminWallets.bnb || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
+    : depositCrypto === 'BTC' 
+    ? (adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
     : (adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
 
   const stats = [
@@ -161,7 +161,7 @@ export default function Wallet() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Crypto Network</label>
               <div className="grid grid-cols-3 gap-2">
-                {['USDT', 'ETH (TRC20)', 'BNB'].map((c) => (
+                {['USDT', 'ETH (TRC20)', 'BTC'].map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -209,7 +209,7 @@ export default function Wallet() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Withdrawal Crypto</label>
               <div className="grid grid-cols-3 gap-2">
-                {['USDT', 'ETH (TRC20)', 'BNB'].map((c) => (
+                {['USDT', 'ETH (TRC20)', 'BTC'].map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -229,7 +229,7 @@ export default function Wallet() {
               <Input label="Amount ($)" type="number" placeholder="50" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
               <Input 
                 label={`Your ${withdrawCrypto} Wallet Address`} 
-                placeholder={withdrawCrypto === 'ETH (TRC20)' ? '0x...' : withdrawCrypto === 'BNB' ? 'bnb1...' : 'T.....'} 
+                placeholder={withdrawCrypto === 'ETH (TRC20)' ? '0x...' : withdrawCrypto === 'BTC' ? '1A...' : 'T.....'} 
                 value={withdrawAddress} 
                 onChange={e => setWithdrawAddress(e.target.value)} 
               />

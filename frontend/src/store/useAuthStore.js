@@ -52,7 +52,7 @@ const useAuthStore = create(
         useChatStore.setState({ conversations: {}, conversationsList: [] })
         usePlatformStore.setState({
           balances: {}, transactions: [], sellerSubscriptions: {}, packageRequests: [],
-          adminSubscriptions: [], adminTotalWithdrawn: 0, adminBankWithdrawals: [], adminDashboardStats: null,
+          adminSubscriptions: [], adminDashboardStats: null,
         })
       },
 
@@ -81,17 +81,17 @@ const useAuthStore = create(
         console.warn('registerUser is a local mock — use registerSeller/registerCustomer instead')
       },
 
-      // Admin wallet addresses for crypto deposits (USDT, ETH TRC20, BNB)
+      // Admin wallet addresses for crypto deposits (USDT, ETH TRC20, BTC)
       adminWallets: {
         usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
         eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-        bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4'
+        btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
       },
-      updateAdminWallets: (usdt, eth, bnb) => set((state) => ({
+      updateAdminWallets: (usdt, eth, btc) => set((state) => ({
         adminWallets: {
           usdt: usdt ?? state.adminWallets?.usdt ?? 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
           eth: eth ?? state.adminWallets?.eth ?? '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-          bnb: bnb ?? state.adminWallets?.bnb ?? 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4'
+          btc: btc ?? state.adminWallets?.btc ?? '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
         }
       })),
     }),

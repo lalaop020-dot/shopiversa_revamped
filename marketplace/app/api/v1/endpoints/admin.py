@@ -11,25 +11,12 @@ from typing import Optional
 from app.db.database import get_db
 from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, TxStatus,
                                 SellerBalance, PackageRequest, Subscription, PackageName, PackageStatus,
-                                Order, OrderStatus, Notification, NotificationType, Product, AdminBankWithdrawal)
+                                Order, OrderStatus, Notification, NotificationType, Product)
 from app.core.deps import admin_only
 from app.core.response import ok, err
 from app.api.v1.endpoints.orders import order_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
-
-
-def gen_bank_withdrawal_id():
-    return "ADM-WD-" + "".join(random.choices(string.digits, k=6))
-
-
-async def gen_unique_bank_withdrawal_id(db: AsyncSession) -> str:
-    for _ in range(5):
-        new_id = gen_bank_withdrawal_id()
-        exists = await db.execute(select(AdminBankWithdrawal.id).where(AdminBankWithdrawal.id == new_id))
-        if not exists.scalar_one_or_none():
-            return new_id
-    raise HTTPException(500, "Could not generate a unique withdrawal ID, please retry")
 
 
 def seller_dict(u: User) -> dict:
@@ -406,70 +393,3 @@ async def unfreeze_package(seller_id: int, admin: User = Depends(admin_only),
         db.add(sub)
         await db.commit()
     return ok({"success": True})
-
-
-# ── Admin Crypto Withdrawals (platform revenue payout) ────────
-
-class BankWithdrawalIn(BaseModel):
-    cryptoType: Optional[str] = "USDT"
-    walletAddress: Optional[str] = None
-    bankName: Optional[str] = None
-    accountHolder: Optional[str] = None
-    iban: Optional[str] = None
-    amount: float = Field(gt=0)
-
-
-def bank_withdrawal_dict(w: AdminBankWithdrawal) -> dict:
-    crypto_type = getattr(w, 'crypto_type', None) or w.bank_name or "USDT"
-    wallet_addr = getattr(w, 'wallet_address', None) or w.iban or ""
-    return {
-        "id": w.id,
-        "cryptoType": crypto_type,
-        "walletAddress": wallet_addr,
-        "bankName": crypto_type,
-        "accountHolder": w.account_holder or "Crypto Payout",
-        "iban": wallet_addr,
-        "amount": float(w.amount),
-        "status": w.status,
-        "date": w.created_at.strftime("%Y-%m-%d"),
-    }
-
-
-@router.get("/bank-withdrawals")
-async def list_bank_withdrawals(admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(AdminBankWithdrawal).order_by(AdminBankWithdrawal.created_at.desc()))
-    withdrawals = result.scalars().all()
-    total_withdrawn = sum((w.amount for w in withdrawals), Decimal("0"))
-    return ok({"withdrawals": [bank_withdrawal_dict(w) for w in withdrawals], "totalWithdrawn": float(total_withdrawn)})
-
-
-@router.post("/bank-withdrawals")
-async def create_bank_withdrawal(data: BankWithdrawalIn, admin: User = Depends(admin_only),
-                                 db: AsyncSession = Depends(get_db)):
-    revenue = (await db.execute(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.type == TxType.Deposit, Transaction.status == TxStatus.Approved)
-    )).scalar()
-    already_withdrawn = (await db.execute(
-        select(func.coalesce(func.sum(AdminBankWithdrawal.amount), 0))
-    )).scalar()
-    available = Decimal(str(revenue)) - Decimal(str(already_withdrawn))
-    if Decimal(str(data.amount)) > available:
-        return err("Insufficient available balance", 400)
-
-    crypto = data.cryptoType or data.bankName or "USDT"
-    wallet_addr = data.walletAddress or data.iban or ""
-
-    w = AdminBankWithdrawal(
-        id=await gen_unique_bank_withdrawal_id(db),
-        crypto_type=crypto,
-        wallet_address=wallet_addr,
-        bank_name=crypto,
-        account_holder="Crypto Payout",
-        iban=wallet_addr,
-        amount=Decimal(str(data.amount)),
-    )
-    db.add(w)
-    await db.commit()
-    await db.refresh(w)
-    return ok({"withdrawal": bank_withdrawal_dict(w)}, 201)

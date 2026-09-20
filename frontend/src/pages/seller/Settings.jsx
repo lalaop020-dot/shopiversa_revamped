@@ -20,7 +20,7 @@ export default function ShopSettings() {
   const adminWallets = useAuthStore((state) => state.adminWallets) || { 
     usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
     eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
-    bnb: 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4' 
+    btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' 
   }
   const updateAdminWallets = useAuthStore((state) => state.updateAdminWallets)
 
@@ -30,7 +30,7 @@ export default function ShopSettings() {
 
   const [adminUsdtInput, setAdminUsdtInput] = useState(adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
   const [adminEthInput, setAdminEthInput] = useState(adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-  const [adminBnbInput, setAdminBnbInput] = useState(adminWallets.bnb || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
+  const [adminBtcInput, setAdminBtcInput] = useState(adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
 
   // Seller profile states
   const [shopName, setShopName] = useState(user?.shopName || 'Shopiversa Official Store')
@@ -38,7 +38,7 @@ export default function ShopSettings() {
   const [shopDesc, setShopDesc] = useState(user?.shopDesc || 'Welcome to the official Shopiversa store. We provide high-quality digital assets and electronics.')
   const [usdtAddress, setUsdtAddress] = useState(user?.usdtAddress || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
   const [ethAddress, setEthAddress] = useState(user?.ethAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-  const [bnbAddress, setBnbAddress] = useState(user?.bnbAddress || 'bnb1gr29kewfvwfj2zcqw2l7h0n50g6c6w86k4')
+  const [btcAddress, setBtcAddress] = useState(user?.btcAddress || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
   
   const [activeTab, setActiveTab] = useState('shop')
 
@@ -67,12 +67,12 @@ export default function ShopSettings() {
           return
         }
         await updateAdminCredentials(adminMailInput, adminNewPassInput)
-        await updateAdminWallets(adminUsdtInput, adminEthInput, adminBnbInput)
+        await updateAdminWallets(adminUsdtInput, adminEthInput, adminBtcInput)
         setAdminNewPassInput('')
         setAdminConfirmPassInput('')
         toast.success('Admin settings updated successfully!')
       } else {
-        await updateUser({ shopName, shopEmail, shopDesc, usdtAddress, ethAddress, bnbAddress })
+        await updateUser({ shopName, shopEmail, shopDesc, usdtAddress, ethAddress, btcAddress })
         toast.success('Settings saved successfully!')
       }
     } catch (error) {
@@ -185,9 +185,9 @@ export default function ShopSettings() {
               onChange={(e) => setAdminEthInput(e.target.value)} 
             />
             <Input 
-              label="BNB Address (BEP20)" 
-              value={adminBnbInput} 
-              onChange={(e) => setAdminBnbInput(e.target.value)} 
+              label="BTC Address" 
+              value={adminBtcInput} 
+              onChange={(e) => setAdminBtcInput(e.target.value)} 
             />
           </div>
 
@@ -292,9 +292,9 @@ export default function ShopSettings() {
                     onChange={(e) => setEthAddress(e.target.value)} 
                   />
                   <Input 
-                    label="BNB Wallet Address (BEP20)" 
-                    value={bnbAddress} 
-                    onChange={(e) => setBnbAddress(e.target.value)} 
+                    label="BTC Wallet Address" 
+                    value={btcAddress} 
+                    onChange={(e) => setBtcAddress(e.target.value)} 
                   />
                   <div className="pt-4 flex items-center gap-3">
                     <input type="checkbox" className="w-4 h-4 rounded border-dark-border bg-dark-bg accent-primary" defaultChecked />

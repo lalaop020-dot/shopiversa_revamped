@@ -103,6 +103,7 @@ class User(Base):
     shop_email = Column(String(255), nullable=True)
     shop_desc = Column(Text, nullable=True)
     usdt_address = Column(String(300), nullable=True)
+    eth_address = Column(String(300), nullable=True)
     btc_address = Column(String(300), nullable=True)
     shop_status = Column(SAEnum(ShopStatus), nullable=True)   # Only for sellers
 

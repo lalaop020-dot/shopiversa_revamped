@@ -11,21 +11,28 @@ const useOrderStore = create(
       adminOrders: [],
 
       createOrder: async (cartItems, shippingInfo, paymentMethod, paymentProof = {}) => {
-        const items = cartItems.map(item => ({
-          productId: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image,
-          category: item.category,
-          sellerEmail: item.sellerEmail,
+        const items = (cartItems || []).map(item => ({
+          productId: Number(item.id ?? item.productId ?? 0),
+          name: item.name || 'Product',
+          price: Number(item.price || 0),
+          quantity: Number(item.quantity || 1),
+          image: item.image || null,
+          category: item.category || null,
+          sellerEmail: item.sellerEmail || null,
         }))
+        const formattedShipping = {
+          name: shippingInfo?.name || `${shippingInfo?.firstName || ''} ${shippingInfo?.lastName || ''}`.trim() || 'Customer',
+          address: shippingInfo?.address || 'N/A',
+          city: shippingInfo?.city || 'N/A',
+          zip: shippingInfo?.zip || '00000',
+          email: shippingInfo?.email || null,
+        }
         const { data } = await api.post('/orders', {
           items,
-          shippingAddress: shippingInfo,
-          paymentMethod,
-          txHash: paymentProof.txHash,
-          walletAddress: paymentProof.walletAddress,
+          shippingAddress: formattedShipping,
+          paymentMethod: paymentMethod || 'card',
+          txHash: paymentProof?.txHash || null,
+          walletAddress: paymentProof?.walletAddress || null,
         })
         const order = data.data.order
         if (shippingInfo?.email) {
