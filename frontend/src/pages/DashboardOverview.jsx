@@ -27,6 +27,8 @@ export default function DashboardOverview({ role }) {
 
   const storeroomProducts = useProductStore((state) => state.storeroomProducts) || []
   const sellerProducts = useProductStore((state) => state.sellerProducts) || {}
+  const sellerProductsMeta = useProductStore((state) => state.sellerProductsMeta[email])
+  const sellerImportedIds = useProductStore((state) => state.sellerImportedIds[email]) || []
   const categories = useProductStore((state) => state.categories) || []
 
   const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
@@ -45,6 +47,7 @@ export default function DashboardOverview({ role }) {
         usePlatformStore.getState().fetchPackageRequests()
         usePlatformStore.getState().fetchCurrentPackage()
         useProductStore.getState().fetchSellerProducts(email)
+        useProductStore.getState().fetchSellerImportedIds(email)
         useOrderStore.getState().fetchSellerOrders()
       }
     }
@@ -77,11 +80,12 @@ export default function DashboardOverview({ role }) {
   const pendingPackages = packageRequests.filter(r => r.status === 'Pending').length
   const totalPendingApprovals = pendingSellerApprovals + pendingTransactions + pendingPackages
 
-  // Seller-specific stats
+  // Seller-specific stats (use meta total or imported IDs count for true real-time total)
   const myProducts = sellerProducts[email] || []
+  const myTotalProductCount = sellerProductsMeta?.total ?? (sellerImportedIds.length > 0 ? sellerImportedIds.length : myProducts.length)
   const myTotalSales = myProducts.reduce((sum, p) => sum + (p.sales || 0), 0)
   const myStockAlerts = myProducts.filter(p => p.stock <= 5).length
-  const myActiveProducts = myProducts.filter(p => p.status === 'Active').length
+  const myActiveProducts = myTotalProductCount
 
   // Seller revenue (total earnings = balance + totalWithdrawn)
   const myTotalRevenue = balances.balance + balances.totalWithdrawn
@@ -264,9 +268,9 @@ export default function DashboardOverview({ role }) {
     },
     {
       label: 'My Products',
-      value: myProducts.length.toString(),
+      value: myTotalProductCount.toString(),
       change: `${myActiveProducts} active`,
-      trend: myProducts.length > 0 ? 'up' : 'neutral',
+      trend: myTotalProductCount > 0 ? 'up' : 'neutral',
       icon: Package,
       color: 'text-primary',
       subtitle: `${myTotalSales} total sales`,
@@ -279,7 +283,7 @@ export default function DashboardOverview({ role }) {
       trend: myTotalSales > 0 ? 'up' : 'neutral',
       icon: ShoppingCart,
       color: 'text-accent-gold',
-      subtitle: `Across ${myProducts.length} products`,
+      subtitle: `Across ${myTotalProductCount} products`,
       route: '/seller/orders',
     },
     {
