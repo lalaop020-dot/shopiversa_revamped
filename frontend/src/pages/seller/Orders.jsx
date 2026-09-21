@@ -4,7 +4,7 @@ import { Filter, Search, Eye, ShoppingBag, X, MapPin, CreditCard, ArrowRight } f
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
-import useOrderStore from '../../store/useOrderStore'
+import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import toast from 'react-hot-toast'
 
@@ -27,12 +27,13 @@ export default function SellerOrders() {
 
   const orders = rawOrders.map(o => ({
     id: o.id,
-    customer: o.shippingAddress?.name || o.shippingAddress?.email || 'Unknown',
-    customerEmail: o.shippingAddress?.email || o.customerEmail || '',
-    items: o.items.reduce((sum, i) => sum + i.quantity, 0),
+    customer: o.shippingAddress?.name || 'Unknown',
+    customerEmail: getOrderCustomerEmail(o),
+    items: o.items ? o.items.reduce((sum, i) => sum + i.quantity, 0) : 0,
     total: o.total,
     date: new Date(o.createdAt).toLocaleDateString(),
-    status: o.status
+    status: o.status,
+    rawOrder: o
   }))
 
   const filteredOrders = orders
@@ -111,7 +112,7 @@ export default function SellerOrders() {
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
                     <td className="px-6 py-4 text-slate-300">
                       <div className="font-semibold">{order.customer}</div>
-                      {order.customerEmail && <div className="text-xs text-primary font-mono mt-0.5">{order.customerEmail}</div>}
+                      <div className="text-xs text-primary font-mono mt-0.5">{order.customerEmail}</div>
                     </td>
                     <td className="px-6 py-4 text-slate-400">{order.items}</td>
                     <td className="px-6 py-4 font-bold">${order.total.toFixed(2)}</td>
@@ -207,9 +208,7 @@ export default function SellerOrders() {
                   <MapPin className="w-3.5 h-3.5" /> Shipping To
                 </div>
                 <div className="font-semibold">{selectedOrder.shippingAddress?.name}</div>
-                {(selectedOrder.shippingAddress?.email || selectedOrder.customerEmail) && (
-                  <div className="text-sm text-slate-400">{selectedOrder.shippingAddress?.email || selectedOrder.customerEmail}</div>
-                )}
+                <div className="text-sm text-primary font-mono font-medium mt-0.5">{getOrderCustomerEmail(selectedOrder)}</div>
                 <div className="text-sm text-slate-400 mt-1">
                   {selectedOrder.shippingAddress?.address}, {selectedOrder.shippingAddress?.city} {selectedOrder.shippingAddress?.zip}
                 </div>

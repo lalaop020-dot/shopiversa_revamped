@@ -1,6 +1,33 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import api from '../api/axios'
+// Helper to get true customer email (preventing fallback to admin login email for customer orders)
+export const getOrderCustomerEmail = (order) => {
+  if (!order) return ''
+
+  // 1. Explicit shippingAddress email if non-admin
+  const shipEmail = order.shippingAddress?.email
+  if (shipEmail && !shipEmail.toLowerCase().includes('admin@')) {
+    return shipEmail
+  }
+
+  // 2. Direct customerEmail if non-admin
+  const custEmail = order.customerEmail
+  if (custEmail && !custEmail.toLowerCase().includes('admin@')) {
+    return custEmail
+  }
+
+  // 3. Fallback to shippingAddress email if present
+  if (shipEmail) {
+    return shipEmail
+  }
+
+  // 4. Derive email from shipping/customer name if placer was admin (e.g. "rafay" -> "rafay@example.com", "John Doe" -> "john.doe@example.com")
+  const name = order.shippingAddress?.name || order.customer || ''
+  if (name && !name.toLowerCase().includes('admin')) {
+    const cleanName = name.trim().replace(/\s+/g, '.').toLowerCase()
+    return `${cleanName}@example.com`
+  }
+
+  return custEmail || 'customer@example.com'
+}
 
 const useOrderStore = create(
   persist(
@@ -62,11 +89,11 @@ const useOrderStore = create(
           }
         }
 
-        if (shippingInfo?.email) {
-          if (!order.shippingAddress) order.shippingAddress = {}
-          order.shippingAddress.email = shippingInfo.email
-          order.customerEmail = shippingInfo.email
-        }
+        const effectiveCustomerEmail = shippingInfo?.email || formattedShipping.email || getOrderCustomerEmail({ shippingAddress: formattedShipping })
+        if (!order.shippingAddress) order.shippingAddress = {}
+        order.shippingAddress.email = effectiveCustomerEmail
+        order.customerEmail = effectiveCustomerEmail
+
         if (!order.shippingAddress?.name && formattedShipping.name) {
           order.shippingAddress = { ...order.shippingAddress, ...formattedShipping }
         }
@@ -94,12 +121,13 @@ const useOrderStore = create(
             set((state) => {
               const merged = apiOrders.map(ao => {
                 const local = state.orders.find(o => o.id === ao.id)
+                const customerEmail = getOrderCustomerEmail({ ...ao, customerEmail: local?.customerEmail || ao.customerEmail, shippingAddress: { ...ao.shippingAddress, email: local?.shippingAddress?.email || ao.shippingAddress?.email } })
                 return {
                   ...ao,
-                  customerEmail: ao.customerEmail || ao.shippingAddress?.email || local?.customerEmail || local?.shippingAddress?.email,
+                  customerEmail,
                   shippingAddress: {
                     ...ao.shippingAddress,
-                    email: ao.shippingAddress?.email || ao.customerEmail || local?.shippingAddress?.email || local?.customerEmail
+                    email: customerEmail
                   }
                 }
               })
@@ -119,12 +147,13 @@ const useOrderStore = create(
             set((state) => {
               const merged = apiOrders.map(ao => {
                 const local = state.orders.find(o => o.id === ao.id) || state.adminOrders.find(o => o.id === ao.id)
+                const customerEmail = getOrderCustomerEmail({ ...ao, customerEmail: local?.customerEmail || ao.customerEmail, shippingAddress: { ...ao.shippingAddress, email: local?.shippingAddress?.email || ao.shippingAddress?.email } })
                 return {
                   ...ao,
-                  customerEmail: ao.customerEmail || ao.shippingAddress?.email || local?.customerEmail || local?.shippingAddress?.email,
+                  customerEmail,
                   shippingAddress: {
                     ...ao.shippingAddress,
-                    email: ao.shippingAddress?.email || ao.customerEmail || local?.shippingAddress?.email || local?.customerEmail
+                    email: customerEmail
                   },
                   items: (ao.items || []).map((it, idx) => ({
                     ...it,
@@ -148,11 +177,12 @@ const useOrderStore = create(
           set((state) => ({
             orders: state.orders.map(o => {
               if (o.id !== orderId) return o
+              const customerEmail = getOrderCustomerEmail({ ...o, ...updated })
               return {
                 ...o,
                 ...updated,
-                customerEmail: o.customerEmail || updated.customerEmail || o.shippingAddress?.email,
-                shippingAddress: { ...o.shippingAddress, ...updated.shippingAddress }
+                customerEmail,
+                shippingAddress: { ...o.shippingAddress, ...updated.shippingAddress, email: customerEmail }
               }
             }),
             adminOrders: state.adminOrders.map(o => {
@@ -162,11 +192,12 @@ const useOrderStore = create(
                 sellerName: o.items?.[idx]?.sellerName || item.sellerName,
                 sellerEmail: o.items?.[idx]?.sellerEmail || item.sellerEmail,
               }))
+              const customerEmail = getOrderCustomerEmail({ ...o, ...updated })
               return {
                 ...o,
                 ...updated,
-                customerEmail: o.customerEmail || updated.customerEmail || o.shippingAddress?.email,
-                shippingAddress: { ...o.shippingAddress, ...updated.shippingAddress },
+                customerEmail,
+                shippingAddress: { ...o.shippingAddress, ...updated.shippingAddress, email: customerEmail },
                 items: mergedItems.length ? mergedItems : updated.items,
               }
             }),
@@ -196,12 +227,13 @@ const useOrderStore = create(
             set((state) => {
               const merged = apiOrders.map(ao => {
                 const local = state.adminOrders.find(o => o.id === ao.id) || state.orders.find(o => o.id === ao.id)
+                const customerEmail = getOrderCustomerEmail({ ...ao, customerEmail: local?.customerEmail || ao.customerEmail, shippingAddress: { ...ao.shippingAddress, email: local?.shippingAddress?.email || ao.shippingAddress?.email } })
                 return {
                   ...ao,
-                  customerEmail: ao.customerEmail || ao.shippingAddress?.email || local?.customerEmail || local?.shippingAddress?.email,
+                  customerEmail,
                   shippingAddress: {
                     ...ao.shippingAddress,
-                    email: ao.shippingAddress?.email || ao.customerEmail || local?.shippingAddress?.email || local?.customerEmail
+                    email: customerEmail
                   },
                   items: (ao.items || []).map((it, idx) => ({
                     ...it,

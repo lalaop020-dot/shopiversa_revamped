@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
-import useOrderStore from '../../store/useOrderStore'
+import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import AdminPlaceOrderModal from '../../components/admin/AdminPlaceOrderModal'
 
@@ -63,11 +63,14 @@ export default function AdminOrders() {
     }
   }
 
-  const filteredOrders = orders.filter(order =>
-    order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (order.shippingAddress?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (order.customerEmail || '').toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredOrders = orders.filter(order => {
+    const custEmail = getOrderCustomerEmail(order)
+    return (
+      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.shippingAddress?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      custEmail.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
 
   const sellersOf = (order) => {
     const names = [...new Set(order.items.map(i => i.sellerName || i.sellerEmail).filter(Boolean))]
@@ -133,14 +136,13 @@ export default function AdminOrders() {
               {filteredOrders.map((order) => {
                 const { label, color, icon: Icon } = statusMeta(order.status)
                 const nextOpt = nextStatusOptions(order.status)[0]
+                const customerEmail = getOrderCustomerEmail(order)
                 return (
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
                     <td className="px-6 py-4 text-slate-300">
                       <div className="font-semibold">{order.shippingAddress?.name || 'Unknown'}</div>
-                      {(order.customerEmail || order.shippingAddress?.email) && (
-                        <div className="text-xs text-primary font-mono mt-0.5">{order.customerEmail || order.shippingAddress?.email}</div>
-                      )}
+                      <div className="text-xs text-primary font-mono mt-0.5">{customerEmail}</div>
                     </td>
                     <td className="px-6 py-4 text-slate-400 text-sm max-w-[200px] truncate" title={sellersOf(order)}>{sellersOf(order)}</td>
                     <td className="px-6 py-4 text-slate-400">{order.items.reduce((s, i) => s + i.quantity, 0)}</td>
@@ -261,9 +263,7 @@ export default function AdminOrders() {
                   <MapPin className="w-3.5 h-3.5" /> Shipping To
                 </div>
                 <div className="font-semibold">{selectedOrder.shippingAddress?.name}</div>
-                {(selectedOrder.customerEmail || selectedOrder.shippingAddress?.email) && (
-                  <div className="text-sm text-primary font-mono font-medium mt-0.5">{selectedOrder.customerEmail || selectedOrder.shippingAddress?.email}</div>
-                )}
+                <div className="text-sm text-primary font-mono font-medium mt-0.5">{getOrderCustomerEmail(selectedOrder)}</div>
                 <div className="text-sm text-slate-400 mt-1">
                   {selectedOrder.shippingAddress?.address}, {selectedOrder.shippingAddress?.city} {selectedOrder.shippingAddress?.zip}
                 </div>
