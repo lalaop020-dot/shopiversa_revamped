@@ -8,6 +8,20 @@ export const DEFAULT_BALANCE = Object.freeze({
 
 export const DEFAULT_SUBSCRIPTION = Object.freeze({ name: 'Silver', status: 'Active' })
 
+// Balances and plans are cached per seller email, and pages read them with
+// `user.email`. This must read the SAME key useAuthStore persists under
+// ('auth-storage-v3'); reading a stale key filed everything under 'me', so a
+// fetched plan/balance never reached the screen. (Importing useAuthStore here
+// would be circular: it already imports this store.)
+const AUTH_STORAGE_KEY = 'auth-storage-v3'
+const currentUserEmail = () => {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || '{}')?.state?.user?.email || 'me'
+  } catch {
+    return 'me'
+  }
+}
+
 const usePlatformStore = create(
   persist(
     (set, get) => ({
@@ -23,7 +37,7 @@ const usePlatformStore = create(
           const { data } = await api.get('/wallet/balance')
           const bal = data.data
           set((state) => {
-            const email = JSON.parse(localStorage.getItem('auth-storage-v2') || '{}')?.state?.user?.email || 'me'
+            const email = currentUserEmail()
             return { balances: { ...state.balances, [email]: bal } }
           })
           return bal
@@ -152,7 +166,7 @@ const usePlatformStore = create(
           const { data } = await api.get('/packages/current')
           const pkg = data.data
           set((state) => {
-            const email = JSON.parse(localStorage.getItem('auth-storage-v2') || '{}')?.state?.user?.email || 'me'
+            const email = currentUserEmail()
             return { sellerSubscriptions: { ...state.sellerSubscriptions, [email]: pkg } }
           })
           return pkg

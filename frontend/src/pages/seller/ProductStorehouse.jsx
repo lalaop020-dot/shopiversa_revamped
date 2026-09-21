@@ -59,6 +59,8 @@ export default function ProductStorehouse() {
   useEffect(() => {
     useProductStore.getState().fetchSellerImportedIds(sellerEmail)
     useProductStore.getState().fetchSellerProducts(sellerEmail, { page: 1, limit: 5000 })
+    // The product limit depends on the plan, so make sure it's the current one.
+    usePlatformStore.getState().fetchCurrentPackage()
   }, [sellerEmail])
 
   // Clear selection on page / search change
