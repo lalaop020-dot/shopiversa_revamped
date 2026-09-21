@@ -466,6 +466,11 @@ export default function SellerRegister() {
       // Save KYC images and profile pic to the persisted auth store
       // so they can be displayed in the seller profile after login.
       saveKycData({ docFrontImage, docBackImage, profilePic })
+      try {
+        const map = JSON.parse(localStorage.getItem('shopiversa_seller_kyc_map') || '{}')
+        map[email] = { docFrontImage, docBackImage, profilePic, submittedAt: new Date().toISOString() }
+        localStorage.setItem('shopiversa_seller_kyc_map', JSON.stringify(map))
+      } catch {}
       // KYC images are stored locally; only core fields are sent to the backend.
       const { user } = await registerSeller(name, shopName, email, password)
       toast.success('Shop application submitted! We\'ll review your KYC documents.')
