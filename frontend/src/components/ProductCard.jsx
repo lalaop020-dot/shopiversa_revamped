@@ -1,11 +1,11 @@
-import { ShoppingCart, Plus, Eye, Store } from 'lucide-react'
+import { ShoppingCart, Plus, Eye, Store, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from './common/Button'
 import { Card } from './common/Card'
 import useCartStore from '../store/useCartStore'
 import toast from 'react-hot-toast'
 
-export function ProductCard({ product, onImport, isImported, showCartAction = false }) {
+export function ProductCard({ product, onImport, onRemove, isImported, isLoading = false, showCartAction = false }) {
   const addItem = useCartStore((state) => state.addItem)
 
   const handleAddToCart = (e) => {
@@ -29,8 +29,13 @@ export function ProductCard({ product, onImport, isImported, showCartAction = fa
               <Eye className="w-4 h-4" />
             </Button>
             {!isImported && onImport && (
-              <Button size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onImport(product) }}>
+              <Button size="sm" disabled={isLoading} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onImport(product) }}>
                 <Plus className="w-4 h-4" /> Import
+              </Button>
+            )}
+            {isImported && onRemove && (
+              <Button size="sm" disabled={isLoading} onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(product) }} className="bg-red-500/80 hover:bg-red-600">
+                <Trash2 className="w-4 h-4" /> Remove
               </Button>
             )}
             {showCartAction && (
