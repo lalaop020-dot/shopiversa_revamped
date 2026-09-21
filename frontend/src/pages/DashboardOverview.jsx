@@ -243,7 +243,7 @@ export default function DashboardOverview({ role }) {
       trend: balances.balance > 0 ? 'up' : 'neutral',
       icon: DollarSign,
       color: 'text-green-500',
-      subtitle: `$${balances.totalWithdrawn.toFixed(2)} withdrawn`,
+      subtitle: `$${(sellerStatsData?.totalEarned ?? 0).toFixed(2)} earned · $${balances.totalWithdrawn.toFixed(2)} withdrawn`,
       route: '/seller/wallet',
     },
     {

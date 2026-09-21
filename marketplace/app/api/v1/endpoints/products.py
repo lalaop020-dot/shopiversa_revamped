@@ -7,7 +7,7 @@ from sqlalchemy import select, func, distinct
 from decimal import Decimal
 
 from app.db.database import get_db
-from app.models.models import Product, SellerProduct, User, ProductStatus, Subscription, PackageName, PackageStatus
+from app.models.models import Product, SellerProduct, OrderPayout, User, ProductStatus, Subscription, PackageName, PackageStatus
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, reprice_product
@@ -375,9 +375,13 @@ async def seller_dashboard_stats(user: User = Depends(seller_only), db: AsyncSes
             func.count(SellerProduct.id).filter(SellerProduct.stock <= 5),
         ).where(SellerProduct.seller_id == user.id)
     )).one()
+    earned = (await db.execute(
+        select(func.coalesce(func.sum(OrderPayout.amount), 0)).where(OrderPayout.seller_id == user.id)
+    )).scalar()
     return ok({
         "totalProducts": row[0], "activeProducts": row[1],
         "totalSales": int(row[2]), "lowStock": row[3],
+        "totalEarned": float(earned),
     })
 
 

@@ -142,6 +142,18 @@ class SellerKyc(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
 
 
+# ── Order payouts ────────────────────────────────────
+# One row per (order, seller), written when the admin marks the order Received.
+# The composite primary key is the guarantee that a seller is credited for an
+# order at most once, even if the status endpoint is hit twice concurrently.
+class OrderPayout(Base):
+    __tablename__ = "order_payouts"
+    order_id = Column(String(20), ForeignKey("orders.id"), primary_key=True)
+    seller_id = Column(Integer, ForeignKey("users.id"), primary_key=True, index=True)
+    amount = Column(Numeric(18, 2), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ── Global Product (Admin storeroom) ───────────────
 class Product(Base):
     __tablename__ = "products"

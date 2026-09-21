@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
-from app.models.models import Order, OrderItem, Product, SellerProduct, User, UserRole, OrderStatus, Notification, NotificationType
+from app.models.models import Order, OrderItem, OrderPayout, SellerBalance, Product, SellerProduct, User, UserRole, OrderStatus, Notification, NotificationType
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core.security import verify_password, hash_password
@@ -282,19 +282,53 @@ async def get_order(order_id: str, user: User = Depends(current_user),
     return ok({"order": order_dict(o, seller_id=seller_id)})
 
 
+async def credit_sellers(o: Order, db: AsyncSession) -> None:
+    """Pay each seller for their items in an order that was just marked Received.
+
+    Amount = sum(price x quantity) of that seller's items, i.e. the seller price
+    the customer was charged (storeroom price + package profit). Goes to both
+    balance and withdrawable. Idempotent via the OrderPayout primary key.
+    """
+    totals: dict[int, Decimal] = {}
+    for i in o.items:
+        if i.seller_id is None:
+            continue
+        totals[i.seller_id] = totals.get(i.seller_id, Decimal("0")) + Decimal(i.price) * i.quantity
+
+    for seller_id, amount in totals.items():
+        amount = amount.quantize(Decimal("0.01"))
+        if amount <= 0:
+            continue
+        if await db.get(OrderPayout, (o.id, seller_id)):
+            continue
+        bal = (await db.execute(
+            select(SellerBalance).where(SellerBalance.seller_id == seller_id).with_for_update()
+        )).scalar_one_or_none()
+        if not bal:
+            bal = SellerBalance(seller_id=seller_id, balance=0, withdrawable=0,
+                                pending_deposit=0, total_withdrawn=0)
+            db.add(bal)
+        bal.balance = (bal.balance or 0) + amount
+        bal.withdrawable = (bal.withdrawable or 0) + amount
+        db.add(OrderPayout(order_id=o.id, seller_id=seller_id, amount=amount))
+        db.add(Notification(user_id=seller_id, title="Order Payment Received",
+                            message=f"${float(amount):.2f} from order #{o.id} was added to your balance.",
+                            type=NotificationType.wallet))
+
+
 @router.put("/{order_id}/status")
 async def update_status(order_id: str, data: StatusUpdate,
                         user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    # Row lock: two simultaneous "Received" clicks must not both credit the seller.
     result = await db.execute(
-        select(Order).options(selectinload(Order.items)).where(Order.id == order_id)
+        select(Order).options(selectinload(Order.items)).where(Order.id == order_id).with_for_update()
     )
     o = result.scalar_one_or_none()
     if not o:
         return err("Order not found", 404)
-    if user.role == UserRole.customer:
-        return err("Not authorized to update this order", 403)
-    if user.role == UserRole.seller and not any(i.seller_id == user.id for i in o.items):
-        return err("Order not found", 404)
+    # Fulfilment status is controlled by the admin only; sellers and customers just view it.
+    if user.role != UserRole.admin:
+        return err("Only admins can update order status", 403)
     try:
         new_status = OrderStatus(data.status)
     except ValueError:
@@ -311,6 +345,8 @@ async def update_status(order_id: str, data: StatusUpdate,
     o.status = new_status
     o.updated_at = datetime.utcnow()
     db.add(o)
+    if new_status == OrderStatus.Delivered:
+        await credit_sellers(o, db)
     await db.commit()
     await db.refresh(o)
     seller_id = user.id if user.role == UserRole.seller else None
