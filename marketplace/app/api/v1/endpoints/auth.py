@@ -1,20 +1,24 @@
 import random, string
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.db.database import get_db
-from app.models.models import User, UserRole, SellerBalance, Subscription, PackageName, ShopStatus
+from app.models.models import User, UserRole, SellerBalance, Subscription, PackageName, ShopStatus, SellerKyc
 from app.core.security import hash_password, verify_password, create_token
 from app.core.deps import current_user
 from app.core.response import ok, err
+from app.core.config import settings
+from app.core.cloudinary_service import upload_image, signed_url, delete_images, ProofError
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def user_dict(u: User) -> dict:
+def user_dict(u: User, profile_image: str | None = None) -> dict:
     return {
         "id": u.id,
         "name": u.name,
@@ -27,18 +31,21 @@ def user_dict(u: User) -> dict:
         "ethAddress": u.eth_address,
         "btcAddress": u.btc_address,
         "shopStatus": u.shop_status.value if u.shop_status else None,
+        "profileImage": profile_image,
     }
+
+
+async def profile_image_of(db: AsyncSession, u: User) -> str | None:
+    """A seller's profile photo (uploaded at registration); None for others."""
+    if u.role != UserRole.seller:
+        return None
+    return (await db.execute(
+        select(SellerKyc.profile_url).where(SellerKyc.seller_id == u.id)
+    )).scalar_one_or_none()
 
 
 class RegisterIn(BaseModel):
     name: str
-    email: EmailStr
-    password: str
-
-
-class SellerRegisterIn(BaseModel):
-    name: str
-    shopName: str
     email: EmailStr
     password: str
 
@@ -84,28 +91,87 @@ async def register_customer(data: RegisterIn, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/register/seller")
-async def register_seller(data: SellerRegisterIn, db: AsyncSession = Depends(get_db)):
-    existing = await db.execute(select(User).where(User.email == data.email))
+async def register_seller(
+    name: str = Form(...),
+    shopName: str = Form(...),
+    email: EmailStr = Form(...),
+    password: str = Form(..., min_length=8),
+    docFront: Optional[UploadFile] = File(None),
+    docBack: Optional[UploadFile] = File(None),
+    profile: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    existing = await db.execute(select(User).where(User.email == email))
     if existing.scalar_one_or_none():
         return err("Email already registered", 400)
-    user = User(
-        name=data.name, email=data.email,
-        hashed_password=hash_password(data.password),
-        role=UserRole.seller,
-        shop_name=data.shopName,
-        shop_status=ShopStatus.pending,
-    )
-    db.add(user)
-    await db.flush()
-    # Create balance + subscription rows
-    db.add(SellerBalance(seller_id=user.id))
-    db.add(Subscription(seller_id=user.id, package_name=PackageName.Silver))
-    await db.commit()
+    # The admin approves a shop by reviewing these, so both sides are mandatory.
+    if not (docFront and docFront.filename) or not (docBack and docBack.filename):
+        return err("Please upload both the front and back of your ID document", 400)
+
+    # Upload first: no seller row is created unless every image is safely stored.
+    private_ids, public_ids = [], []
+    try:
+        front = await upload_image(docFront, settings.CLOUDINARY_KYC_FOLDER, private=True)
+        private_ids.append(front[1])
+        back = await upload_image(docBack, settings.CLOUDINARY_KYC_FOLDER, private=True)
+        private_ids.append(back[1])
+        photo = await upload_image(profile, settings.CLOUDINARY_KYC_FOLDER + "/profiles")
+        if photo:
+            public_ids.append(photo[1])
+    except ProofError as e:
+        await delete_images(private_ids, private=True)
+        await delete_images(public_ids)
+        return err(e.message, e.status_code)
+
+    try:
+        user = User(
+            name=name, email=email,
+            hashed_password=hash_password(password),
+            role=UserRole.seller,
+            shop_name=shopName,
+            shop_status=ShopStatus.pending,
+        )
+        db.add(user)
+        await db.flush()
+        # Balance + subscription + KYC rows
+        db.add(SellerBalance(seller_id=user.id))
+        db.add(Subscription(seller_id=user.id, package_name=PackageName.Silver))
+        db.add(SellerKyc(
+            seller_id=user.id, doc_front_id=front[1], doc_back_id=back[1],
+            profile_url=photo[0] if photo else None, profile_public_id=photo[1] if photo else None,
+        ))
+        await db.commit()
+    except IntegrityError:  # someone registered this email between the check and now
+        await db.rollback()
+        await delete_images(private_ids, private=True)
+        await delete_images(public_ids)
+        return err("Email already registered", 400)
+    except Exception:
+        await db.rollback()
+        await delete_images(private_ids, private=True)
+        await delete_images(public_ids)
+        raise
     await db.refresh(user)
     # No token issued yet — the shop is pending admin approval and the
     # seller cannot log in until it's approved (see /auth/login below).
-    return ok({"user": user_dict(user), "role": user.role.value}, 201)
+    return ok({"user": user_dict(user, photo[0] if photo else None), "role": user.role.value}, 201)
 
+
+def kyc_dict(k: SellerKyc) -> dict:
+    """Signed links to a seller's KYC images. Only ever returned to the admin
+    or to the seller themselves."""
+    return {
+        "front": signed_url(k.doc_front_id),
+        "back": signed_url(k.doc_back_id),
+        "profile": k.profile_url,
+        "submittedAt": k.submitted_at.isoformat() if k.submitted_at else None,
+    }
+
+
+@router.get("/kyc")
+async def my_kyc(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    k = (await db.execute(select(SellerKyc).where(SellerKyc.seller_id == user.id))).scalar_one_or_none()
+    return ok({"kyc": kyc_dict(k) if k else None})
 
 SHOP_STATUS_MESSAGES = {
     "pending": "Your shop application is pending admin approval. Please check back later.",
@@ -130,7 +196,7 @@ async def login(data: LoginIn, db: AsyncSession = Depends(get_db)):
             shopStatus=status,
         )
     token = create_token({"sub": str(user.id)})
-    return ok({"user": user_dict(user), "role": user.role.value, "token": token})
+    return ok({"user": user_dict(user, await profile_image_of(db, user)), "role": user.role.value, "token": token})
 
 
 @router.post("/logout")
@@ -139,8 +205,8 @@ async def logout():
 
 
 @router.get("/me")
-async def me(user: User = Depends(current_user)):
-    return ok({"user": user_dict(user), "role": user.role.value})
+async def me(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    return ok({"user": user_dict(user, await profile_image_of(db, user)), "role": user.role.value})
 
 
 @router.put("/profile")
@@ -162,7 +228,7 @@ async def update_profile(data: ProfileUpdate, user: User = Depends(current_user)
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    return ok({"user": user_dict(user)})
+    return ok({"user": user_dict(user, await profile_image_of(db, user))})
 
 
 @router.put("/password")

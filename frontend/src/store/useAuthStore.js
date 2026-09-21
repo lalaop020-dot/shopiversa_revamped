@@ -14,11 +14,6 @@ const useAuthStore = create(
       isAuthenticated: false,
       token: null,
 
-      // KYC data persisted locally (frontend only — images stored as base64)
-      kycData: null, // { docFrontImage, docBackImage, profilePic, submittedAt }
-      saveKycData: ({ docFrontImage, docBackImage, profilePic }) =>
-        set({ kycData: { docFrontImage, docBackImage, profilePic, submittedAt: new Date().toISOString() } }),
-
       setAuth: (user, role, token) => {
         if (token) localStorage.setItem('token', token)
         set({ user, role, token, isAuthenticated: !!user })
@@ -42,14 +37,18 @@ const useAuthStore = create(
 
       // Seller signup does NOT log the user in — the shop is pending admin
       // approval and can't be used until then, so no token is issued.
-      registerSeller: async (name, shopName, email, password) => {
-        const { data } = await api.post('/auth/register/seller', { name, shopName, email, password })
+      // The argument is a FormData: name, shopName, email, password + the KYC image files
+      // (docFront, docBack, optional profile), stored server-side on Cloudinary.
+      registerSeller: async (form) => {
+        const { data } = await api.post('/auth/register/seller', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
         return data.data
       },
 
       logout: () => {
         localStorage.removeItem('token')
-        set({ user: null, role: null, token: null, isAuthenticated: false, kycData: null })
+        set({ user: null, role: null, token: null, isAuthenticated: false })
         // Clear cross-store state so the next login on this browser
         // doesn't inherit the previous user's cart/orders/chats/balances.
         useCartStore.getState().clearCart()

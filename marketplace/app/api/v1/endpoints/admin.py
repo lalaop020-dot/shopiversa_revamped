@@ -11,23 +11,35 @@ from typing import Optional
 from app.db.database import get_db
 from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, TxStatus,
                                 SellerBalance, PackageRequest, Subscription, PackageName, PackageStatus,
-                                Order, OrderStatus, Notification, NotificationType, Product)
+                                Order, OrderStatus, Notification, NotificationType, Product, SellerKyc)
 from app.core.deps import admin_only
 from app.core.response import ok, err
-from app.core.pricing import reprice_seller
+from app.core.pricing import reprice_seller, HOUSE_SELLER_EMAIL
+from app.api.v1.endpoints.auth import kyc_dict
 from app.api.v1.endpoints.wallet import proof_url
 from app.api.v1.endpoints.orders import order_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
-def seller_dict(u: User) -> dict:
+def seller_dict(u: User, kyc: SellerKyc | None = None) -> dict:
     return {
         "id": u.id, "name": u.name, "email": u.email,
         "shopName": u.shop_name, "shopStatus": u.shop_status.value if u.shop_status else None,
         "createdAt": u.created_at.isoformat(),
         "isActive": u.is_active,
+        "profileImage": kyc.profile_url if kyc else None,
+        "kycSubmitted": kyc is not None,
+        "isHouse": u.email == HOUSE_SELLER_EMAIL,  # the platform's own store: no KYC expected
     }
+
+
+async def kyc_by_seller(db: AsyncSession, sellers: list) -> dict:
+    ids = [s.id for s in sellers]
+    if not ids:
+        return {}
+    rows = (await db.execute(select(SellerKyc).where(SellerKyc.seller_id.in_(ids)))).scalars().all()
+    return {k.seller_id: k for k in rows}
 
 
 def tx_dict_admin(t: Transaction) -> dict:
@@ -136,7 +148,8 @@ async def pending_sellers(admin: User = Depends(admin_only), db: AsyncSession = 
         .order_by(User.created_at.desc())
     )
     sellers = result.scalars().all()
-    return ok({"shops": [seller_dict(s) for s in sellers]})
+    kyc = await kyc_by_seller(db, sellers)
+    return ok({"shops": [seller_dict(s, kyc.get(s.id)) for s in sellers]})
 
 
 @router.get("/sellers")
@@ -147,8 +160,16 @@ async def all_sellers(
     q = select(User).where(User.role == UserRole.seller)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar()
     q = q.order_by(User.created_at.desc()).offset((page - 1) * limit).limit(limit)
-    result = await db.execute(q)
-    return ok({"sellers": [seller_dict(s) for s in result.scalars().all()], "total": total})
+    sellers = (await db.execute(q)).scalars().all()
+    kyc = await kyc_by_seller(db, sellers)
+    return ok({"sellers": [seller_dict(s, kyc.get(s.id)) for s in sellers], "total": total})
+
+
+@router.get("/sellers/{seller_id}/kyc")
+async def seller_kyc(seller_id: int, admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+    """Signed links to one seller's ID documents — fetched only when the admin opens the review."""
+    k = (await db.execute(select(SellerKyc).where(SellerKyc.seller_id == seller_id))).scalar_one_or_none()
+    return ok({"kyc": kyc_dict(k) if k else None})
 
 
 @router.put("/sellers/{seller_id}/approve")
@@ -158,6 +179,8 @@ async def approve_seller(seller_id: int, admin: User = Depends(admin_only),
     seller = result.scalar_one_or_none()
     if not seller:
         return err("Seller not found", 404)
+    if seller.shop_status == ShopStatus.approved:
+        return ok({"shop": seller_dict(seller)})  # already approved: no duplicate notification
     seller.shop_status = ShopStatus.approved
     db.add(seller)
     # Notify seller
@@ -175,6 +198,8 @@ async def reject_seller(seller_id: int, admin: User = Depends(admin_only),
     seller = result.scalar_one_or_none()
     if not seller:
         return err("Seller not found", 404)
+    if seller.shop_status != ShopStatus.pending:
+        return err("Only pending applications can be rejected", 400)
     seller.shop_status = ShopStatus.rejected
     db.add(seller)
     db.add(Notification(user_id=seller.id, title="Shop Application Rejected",

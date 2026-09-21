@@ -5,7 +5,7 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
-import { validateProofFile } from '../../utils/proofFile'
+import { prepareProofFile } from '../../utils/proofFile'
 import toast from 'react-hot-toast'
 
 const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
@@ -72,11 +72,11 @@ export default function Wallet() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  // Validate a chosen screenshot (type/size) before keeping it in state.
-  const pickProof = (e, setter) => {
-    const file = e.target.files[0] || null
-    const problem = validateProofFile(file)
-    if (problem) { toast.error(problem); e.target.value = ''; setter(null); return }
+  // Validate (and shrink, if it's a big phone photo) a chosen screenshot before keeping it.
+  const pickProof = async (e, setter) => {
+    const input = e.target
+    const { file, error } = await prepareProofFile(input.files[0] || null)
+    if (error) { toast.error(error); input.value = ''; setter(null); return }
     setter(file)
   }
 

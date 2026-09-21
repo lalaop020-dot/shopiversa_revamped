@@ -7,7 +7,7 @@ import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
-import { validateProofFile } from '../../utils/proofFile'
+import { prepareProofFile } from '../../utils/proofFile'
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
@@ -141,11 +141,11 @@ export default function PackageManagement() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleProofChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const problem = validateProofFile(file)
-    if (problem) { toast.error(problem); e.target.value = ''; return }
+  const handleProofChange = async (e) => {
+    const input = e.target
+    if (!input.files[0]) return
+    const { file, error } = await prepareProofFile(input.files[0])
+    if (error) { toast.error(error); input.value = ''; return }
     setProofFile(file)
     const reader = new FileReader()
     reader.onload = (ev) => setProofPreview(ev.target.result)

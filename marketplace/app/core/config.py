@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
     CLOUDINARY_PROOF_FOLDER: str = "shopiversa/proofs"
+    CLOUDINARY_KYC_FOLDER: str = "shopiversa/kyc"
 
     class Config:
         env_file = ".env"

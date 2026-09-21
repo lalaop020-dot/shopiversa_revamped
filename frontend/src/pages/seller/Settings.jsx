@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Store, User, Lock, Wallet, ShieldCheck, CreditCard, CheckCircle2, AlertCircle, ImageIcon } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useAuthStore from '../../store/useAuthStore'
+import ImageLightbox from '../../components/common/ImageLightbox'
+import api from '../../api/axios'
 import toast from 'react-hot-toast'
 
 export default function ShopSettings() {
@@ -12,7 +14,17 @@ export default function ShopSettings() {
   const updateUser = useAuthStore((state) => state.updateUser)
   const changePassword = useAuthStore((state) => state.changePassword)
   const setTransactionPassword = useAuthStore((state) => state.setTransactionPassword)
-  const kycData = useAuthStore((state) => state.kycData)
+  // KYC documents live on the server (Cloudinary); fetched here for the owner.
+  const [kycData, setKycData] = useState(null)
+  const [previewImage, setPreviewImage] = useState(null)
+  useEffect(() => {
+    if (role !== 'seller') return
+    let cancelled = false
+    api.get('/auth/kyc')
+      .then(({ data }) => { if (!cancelled) setKycData(data?.data?.kyc || null) })
+      .catch(() => { if (!cancelled) setKycData(null) })
+    return () => { cancelled = true }
+  }, [role])
 
   // Admin credentials state
   const updateAdminCredentials = useAuthStore((state) => state.updateAdminCredentials)
@@ -238,9 +250,9 @@ export default function ShopSettings() {
               <div className="space-y-6 animate-fade-in">
                 <div className="flex items-center gap-6 pb-6 border-b border-dark-border">
                   <div className="relative shrink-0">
-                    {kycData?.profilePic ? (
+                    {user?.profileImage ? (
                       <img
-                        src={kycData.profilePic}
+                        src={user.profileImage}
                         alt="Profile"
                         className="w-24 h-24 rounded-2xl object-cover border-2 border-primary/40"
                       />
@@ -292,7 +304,7 @@ export default function ShopSettings() {
                   <div>
                     <h4 className="font-bold text-sm text-primary">KYC Verification Documents</h4>
                     <p className="text-xs text-slate-400 mt-1">
-                      These are the identity documents you submitted during registration. They are stored locally on this device for your reference.
+                      These are the identity documents you submitted during registration. They are stored securely and are only visible to you and our verification team.
                     </p>
                   </div>
                 </div>
@@ -327,12 +339,12 @@ export default function ShopSettings() {
                       <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
                       <div>
                         <p className="text-sm font-bold text-green-400">KYC Documents Submitted</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Your documents are under review by our admin team. You will be notified once verified.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Your documents were reviewed by our admin team when your shop was approved.</p>
                       </div>
                     </div>
 
                     {/* Profile Picture */}
-                    {kycData.profilePic && (
+                    {kycData.profile && (
                       <div className="space-y-2">
                         <h5 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                           <User className="w-4 h-4 text-primary" />
@@ -340,7 +352,8 @@ export default function ShopSettings() {
                         </h5>
                         <div className="relative inline-block">
                           <img
-                            src={kycData.profilePic}
+                            src={kycData.profile}
+                            onClick={() => setPreviewImage({ title: 'Profile photo', url: kycData.profile })}
                             alt="Profile"
                             className="w-28 h-28 rounded-2xl object-cover border-2 border-primary/40"
                           />
@@ -361,12 +374,13 @@ export default function ShopSettings() {
                         {/* Front view */}
                         <div className="space-y-2">
                           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Front View</p>
-                          {kycData.docFrontImage ? (
+                          {kycData.front ? (
                             <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-dark-bg group">
                               <img
-                                src={kycData.docFrontImage}
+                                src={kycData.front}
+                                onClick={() => setPreviewImage({ title: 'Document front view', url: kycData.front })}
                                 alt="Document Front"
-                                className="w-full object-cover max-h-52"
+                                className="w-full object-cover max-h-52 cursor-pointer"
                               />
                               {/* Corner brackets */}
                               <div className="absolute inset-0 pointer-events-none">
@@ -390,12 +404,13 @@ export default function ShopSettings() {
                         {/* Back view */}
                         <div className="space-y-2">
                           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Back View</p>
-                          {kycData.docBackImage ? (
+                          {kycData.back ? (
                             <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-dark-bg group">
                               <img
-                                src={kycData.docBackImage}
+                                src={kycData.back}
+                                onClick={() => setPreviewImage({ title: 'Document back view', url: kycData.back })}
                                 alt="Document Back"
-                                className="w-full object-cover max-h-52"
+                                className="w-full object-cover max-h-52 cursor-pointer"
                               />
                               {/* Corner brackets */}
                               <div className="absolute inset-0 pointer-events-none">
@@ -419,7 +434,7 @@ export default function ShopSettings() {
                     </div>
 
                     <p className="text-[11px] text-slate-600 italic">
-                      * KYC images are stored locally in your browser. They are not visible to other parties until reviewed by our admins.
+                      * Your documents are stored securely on our servers and are only visible to you and our verification team.
                     </p>
                   </>
                 ) : (
@@ -431,7 +446,7 @@ export default function ShopSettings() {
                     <div>
                       <h4 className="font-bold text-slate-300">No KYC Data Found</h4>
                       <p className="text-slate-500 text-sm mt-1 max-w-xs">
-                        KYC documents are only stored locally during seller registration. They were not found on this device.
+                        No identity documents are on file for this account.
                       </p>
                     </div>
                   </div>
@@ -535,6 +550,10 @@ export default function ShopSettings() {
           </Card>
         </div>
       </div>
+
+      {previewImage && (
+        <ImageLightbox url={previewImage.url} title={previewImage.title} onClose={() => setPreviewImage(null)} />
+      )}
     </div>
   )
 }

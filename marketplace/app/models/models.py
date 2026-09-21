@@ -119,6 +119,20 @@ class User(Base):
     support_tickets = relationship("SupportTicket", back_populates="seller")
 
 
+# ── Seller KYC (registration documents) ────────────
+# Separate table (not columns on users) so create_all() adds it on deploy with
+# no manual migration. ID documents are Cloudinary *authenticated* assets: we
+# keep their public_id and hand out signed links only to the admin / the owner.
+class SellerKyc(Base):
+    __tablename__ = "seller_kyc"
+    seller_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    doc_front_id = Column(Text, nullable=False)   # Cloudinary public_id (authenticated)
+    doc_back_id = Column(Text, nullable=False)    # Cloudinary public_id (authenticated)
+    profile_url = Column(Text, nullable=True)     # public https URL of the profile photo
+    profile_public_id = Column(Text, nullable=True)
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ── Global Product (Admin storeroom) ───────────────
 class Product(Base):
     __tablename__ = "products"

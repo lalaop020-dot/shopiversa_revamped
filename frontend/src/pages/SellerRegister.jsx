@@ -12,6 +12,7 @@ import { Button } from '../components/common/Button'
 import { Input } from '../components/common/Input'
 import useAuthStore from '../store/useAuthStore'
 import toast from 'react-hot-toast'
+import { prepareProofFile } from '../utils/proofFile'
 
 // ── Schemas ───────────────────────────────────────────────────
 const step1Schema = z.object({
@@ -84,17 +85,13 @@ function ImageUploadZone({ title, preview, onUpload, onClear, error, badgeText =
   const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
-  const handleFile = useCallback((file) => {
-    if (!file || !file.type.startsWith('image/')) {
-      toast.error('Please upload a valid image file')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File too large. Maximum size is 5 MB.')
-      return
-    }
+  const handleFile = useCallback(async (picked) => {
+    if (!picked) return
+    const { file, error } = await prepareProofFile(picked)
+    if (error) { toast.error(error); return }
+    // Preview locally; the (possibly downscaled) File is what gets uploaded on submit.
     const reader = new FileReader()
-    reader.onload = (e) => onUpload(e.target.result)
+    reader.onload = (e) => onUpload(e.target.result, file)
     reader.readAsDataURL(file)
   }, [onUpload])
 
@@ -141,10 +138,11 @@ function ImageUploadZone({ title, preview, onUpload, onClear, error, badgeText =
           <button
             type="button"
             onClick={onClear}
-            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-dark-bg/80 backdrop-blur-sm border border-dark-border flex items-center justify-center text-slate-400 hover:text-red-400 hover:border-red-500/50 transition-all duration-200 opacity-0 group-hover:opacity-100"
+            className="absolute top-2 right-2 w-9 h-9 sm:w-7 sm:h-7 rounded-full bg-dark-bg/80 backdrop-blur-sm border border-dark-border flex items-center justify-center text-slate-300 sm:text-slate-400 hover:text-red-400 hover:border-red-500/50 transition-all duration-200 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100"
             title="Remove image"
+            aria-label="Remove image"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       ) : (
@@ -193,7 +191,7 @@ function ImageUploadZone({ title, preview, onUpload, onClear, error, badgeText =
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={(e) => handleFile(e.target.files[0])}
       />
@@ -211,11 +209,12 @@ function ImageUploadZone({ title, preview, onUpload, onClear, error, badgeText =
 function AvatarUpload({ preview, onUpload }) {
   const inputRef = useRef(null)
 
-  const handleFile = (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-    if (file.size > 5 * 1024 * 1024) { toast.error('File too large. Max 5 MB.'); return }
+  const handleFile = async (picked) => {
+    if (!picked) return
+    const { file, error } = await prepareProofFile(picked)
+    if (error) { toast.error(error); return }
     const reader = new FileReader()
-    reader.onload = (e) => onUpload(e.target.result)
+    reader.onload = (e) => onUpload(e.target.result, file)
     reader.readAsDataURL(file)
   }
 
@@ -258,7 +257,7 @@ function AvatarUpload({ preview, onUpload }) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={(e) => handleFile(e.target.files[0])}
       />
@@ -411,12 +410,14 @@ export default function SellerRegister() {
   const [step, setStep] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
 
-  // Profile picture (frontend only — not sent to backend)
+  // Profile picture + KYC documents: a local preview (data URL) for display and
+  // the File itself, which is uploaded to the server on submit.
   const [profilePic, setProfilePic] = useState('')
-
-  // KYC state (frontend only — not sent to backend)
+  const [profileFile, setProfileFile] = useState(null)
   const [docFrontImage, setDocFrontImage] = useState('')
+  const [docFrontFile, setDocFrontFile] = useState(null)
   const [docBackImage, setDocBackImage] = useState('')
+  const [docBackFile, setDocBackFile] = useState(null)
   const [kycErrors, setKycErrors] = useState({})
 
   // CAPTCHA state
@@ -425,7 +426,7 @@ export default function SellerRegister() {
   // Slide direction for step transition
   const [slideDir, setSlideDir] = useState('right')
 
-  const { registerSeller, saveKycData } = useAuthStore()
+  const { registerSeller } = useAuthStore()
   const navigate = useNavigate()
 
   const {
@@ -463,16 +464,16 @@ export default function SellerRegister() {
     setIsLoading(true)
     try {
       const { shopName, name, email, password } = getValues()
-      // Save KYC images and profile pic to the persisted auth store
-      // so they can be displayed in the seller profile after login.
-      saveKycData({ docFrontImage, docBackImage, profilePic })
-      try {
-        const map = JSON.parse(localStorage.getItem('shopiversa_seller_kyc_map') || '{}')
-        map[email] = { docFrontImage, docBackImage, profilePic, submittedAt: new Date().toISOString() }
-        localStorage.setItem('shopiversa_seller_kyc_map', JSON.stringify(map))
-      } catch {}
-      // KYC images are stored locally; only core fields are sent to the backend.
-      const { user } = await registerSeller(name, shopName, email, password)
+      // Images go to the server (stored on Cloudinary) with the account details.
+      const form = new FormData()
+      form.append('name', name)
+      form.append('shopName', shopName)
+      form.append('email', email)
+      form.append('password', password)
+      form.append('docFront', docFrontFile)
+      form.append('docBack', docBackFile)
+      if (profileFile) form.append('profile', profileFile)
+      const { user } = await registerSeller(form)
       toast.success('Shop application submitted! We\'ll review your KYC documents.')
       navigate('/seller-pending', { state: { shopStatus: user.shopStatus, shopName: user.shopName } })
     } catch (error) {
@@ -513,7 +514,7 @@ export default function SellerRegister() {
       >
         <form onSubmit={goToKyc} className="space-y-4">
           {/* Profile Picture */}
-          <AvatarUpload preview={profilePic} onUpload={setProfilePic} />
+          <AvatarUpload preview={profilePic} onUpload={(img, file) => { setProfilePic(img); setProfileFile(file) }} />
 
           <div className="relative">
             <Input
@@ -603,8 +604,8 @@ export default function SellerRegister() {
                 title="Front View Picture"
                 badgeText="Front view uploaded"
                 preview={docFrontImage}
-                onUpload={(img) => { setDocFrontImage(img); setKycErrors(p => ({ ...p, docFrontImage: '' })) }}
-                onClear={() => setDocFrontImage('')}
+                onUpload={(img, file) => { setDocFrontImage(img); setDocFrontFile(file); setKycErrors(p => ({ ...p, docFrontImage: '' })) }}
+                onClear={() => { setDocFrontImage(''); setDocFrontFile(null) }}
                 error={kycErrors.docFrontImage}
               />
 
@@ -612,8 +613,8 @@ export default function SellerRegister() {
                 title="Back View Picture"
                 badgeText="Back view uploaded"
                 preview={docBackImage}
-                onUpload={(img) => { setDocBackImage(img); setKycErrors(p => ({ ...p, docBackImage: '' })) }}
-                onClear={() => setDocBackImage('')}
+                onUpload={(img, file) => { setDocBackImage(img); setDocBackFile(file); setKycErrors(p => ({ ...p, docBackImage: '' })) }}
+                onClear={() => { setDocBackImage(''); setDocBackFile(null) }}
                 error={kycErrors.docBackImage}
               />
             </div>

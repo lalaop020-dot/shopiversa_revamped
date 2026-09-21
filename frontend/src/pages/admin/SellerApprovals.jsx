@@ -8,8 +8,18 @@ import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import { Input } from '../../components/common/Input'
 import api from '../../api/axios'
-import useAuthStore from '../../store/useAuthStore'
+import ImageLightbox from '../../components/common/ImageLightbox'
 import toast from 'react-hot-toast'
+
+// Seller's profile photo (uploaded at registration) or their initial.
+function ShopAvatar({ shop, className }) {
+  const initial = (shop.shopName || shop.name || 'S')[0]
+  return shop.profileImage ? (
+    <img src={shop.profileImage} alt="" className={`${className} object-cover`} loading="lazy" />
+  ) : (
+    <div className={`${className} flex items-center justify-center font-bold`}>{initial}</div>
+  )
+}
 
 export default function SellerApprovals() {
   const [pendingShops, setPendingShops] = useState([])
@@ -18,6 +28,10 @@ export default function SellerApprovals() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedShop, setSelectedShop] = useState(null)
   const [previewImage, setPreviewImage] = useState(null)
+  // KYC documents of the shop being inspected — fetched on demand from the server
+  // (signed, private links), never kept in the browser.
+  const [kyc, setKyc] = useState(null)
+  const [kycLoading, setKycLoading] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -26,15 +40,17 @@ export default function SellerApprovals() {
       setPendingShops(pendingData?.data?.shops || [])
     } catch {
       setPendingShops([])
+      toast.error('Could not load pending applications')
     }
 
     try {
-      const { data: allData } = await api.get('/admin/sellers?limit=100')
+      const { data: allData } = await api.get('/admin/sellers?limit=200')
       const allSellers = allData?.data?.sellers || []
-      const approved = allSellers.filter(s => !s.shopStatus || s.shopStatus === 'approved')
-      setApprovedShops(approved.length ? approved : getFallbackApprovedShops())
+      // The platform's own store is not a seller that goes through KYC.
+      setApprovedShops(allSellers.filter(s => s.shopStatus === 'approved' && !s.isHouse))
     } catch {
-      setApprovedShops(getFallbackApprovedShops())
+      setApprovedShops([])
+      toast.error('Could not load approved shops')
     }
     setLoading(false)
   }
@@ -43,41 +59,31 @@ export default function SellerApprovals() {
     load()
   }, [])
 
-  const getFallbackApprovedShops = () => [
-    {
-      id: 101,
-      name: 'John Doe',
-      shopName: 'Shopiversa Official Store',
-      email: 'seller@demo.com',
-      shopStatus: 'approved',
-      createdAt: '2026-08-10T12:00:00.000Z',
-    },
-    {
-      id: 102,
-      name: 'Sarah Connor',
-      shopName: 'Fashion Hub Outlet',
-      email: 'sarah@fashionhub.com',
-      shopStatus: 'approved',
-      createdAt: '2026-09-01T14:30:00.000Z',
-    },
-    {
-      id: 103,
-      name: 'Alex Rivera',
-      shopName: 'CyberTech Digital Shop',
-      email: 'alex.rivera@cybertech.io',
-      shopStatus: 'approved',
-      createdAt: '2026-09-12T09:15:00.000Z',
-    },
-  ]
+  // Open a shop for review and fetch its documents.
+  const inspect = async (shop) => {
+    setSelectedShop(shop)
+    setKyc(null)
+    setKycLoading(true)
+    try {
+      const { data } = await api.get(`/admin/sellers/${shop.id}/kyc`)
+      setKyc(data?.data?.kyc || null)
+    } catch {
+      setKyc(null)
+      toast.error('Could not load KYC documents')
+    } finally {
+      setKycLoading(false)
+    }
+  }
 
+  const closeInspect = () => { setSelectedShop(null); setKyc(null) }
   const approve = async (id) => {
     try {
       await api.put(`/admin/sellers/${id}/approve`)
       toast.success('Shop approved successfully!')
-      if (selectedShop?.id === id) setSelectedShop(null)
+      if (selectedShop?.id === id) closeInspect()
       load()
-    } catch {
-      toast.error('Failed to approve shop')
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to approve shop')
     }
   }
 
@@ -85,24 +91,11 @@ export default function SellerApprovals() {
     try {
       await api.put(`/admin/sellers/${id}/reject`)
       toast.success('Shop application rejected')
-      if (selectedShop?.id === id) setSelectedShop(null)
+      if (selectedShop?.id === id) closeInspect()
       load()
-    } catch {
-      toast.error('Failed to reject shop')
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to reject shop')
     }
-  }
-
-  const getKycDataForShop = (shopEmail) => {
-    const authKyc = useAuthStore.getState().kycData
-    const authUserEmail = useAuthStore.getState().user?.email
-    if (authKyc && authUserEmail === shopEmail) {
-      return authKyc
-    }
-    try {
-      const map = JSON.parse(localStorage.getItem('shopiversa_seller_kyc_map') || '{}')
-      if (map[shopEmail]) return map[shopEmail]
-    } catch {}
-    return null
   }
 
   const filteredApproved = approvedShops.filter(shop =>
@@ -148,9 +141,7 @@ export default function SellerApprovals() {
               <Card key={shop.id} className="p-6 space-y-4 border-amber-500/30 hover:border-amber-500/60 transition-all">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
-                      {(shop.shopName || shop.name || 'S')[0]}
-                    </div>
+                    <ShopAvatar shop={shop} className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-lg shrink-0" />
                     <div>
                       <h3 className="font-bold text-base text-white">{shop.shopName || 'Unnamed Shop'}</h3>
                       <p className="text-slate-400 text-xs flex items-center gap-1.5 mt-0.5">
@@ -171,8 +162,8 @@ export default function SellerApprovals() {
                     <Calendar className="w-3.5 h-3.5 text-slate-500" /> Applied: {new Date(shop.createdAt).toLocaleDateString()}
                   </span>
                   <button
-                    onClick={() => setSelectedShop(shop)}
-                    className="text-primary hover:underline font-bold flex items-center gap-1"
+                    onClick={() => inspect(shop)}
+                    className="text-primary hover:underline font-bold flex items-center gap-1 min-h-[44px]"
                   >
                     <Eye className="w-3.5 h-3.5" /> Inspect KYC
                   </button>
@@ -229,17 +220,12 @@ export default function SellerApprovals() {
               </thead>
               <tbody className="divide-y divide-dark-border text-sm">
                 {filteredApproved.map((shop) => {
-                  const kyc = getKycDataForShop(shop.email)
-                  const hasKycImages = !!(kyc?.docFrontImage || kyc?.docBackImage)
-
                   return (
                     <tr key={shop.id} className="hover:bg-dark-bg/50 transition-colors">
                       {/* Shop & Owner */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-bold shrink-0">
-                            {(shop.shopName || shop.name || 'S')[0]}
-                          </div>
+                          <ShopAvatar shop={shop} className="w-10 h-10 rounded-xl bg-primary/20 text-primary shrink-0" />
                           <div>
                             <div className="font-bold text-white text-base">{shop.shopName || 'Seller Store'}</div>
                             <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
@@ -263,16 +249,15 @@ export default function SellerApprovals() {
 
                       {/* KYC Status */}
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        {shop.kycSubmitted ? (
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 inline-flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Verified KYC
+                            <ShieldCheck className="w-3.5 h-3.5" /> KYC on file
                           </span>
-                          {hasKycImages && (
-                            <span className="text-[10px] bg-dark-bg text-slate-400 px-2 py-0.5 rounded border border-dark-border font-mono">
-                              2 Docs
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold uppercase bg-slate-500/20 text-slate-400 border border-slate-500/30 inline-flex items-center gap-1">
+                            <ShieldAlert className="w-3.5 h-3.5" /> No KYC
+                          </span>
+                        )}
                       </td>
 
                       {/* Joined Date */}
@@ -286,7 +271,7 @@ export default function SellerApprovals() {
                           variant="ghost"
                           size="sm"
                           className="gap-1.5 hover:bg-primary/20 hover:text-primary font-bold"
-                          onClick={() => setSelectedShop(shop)}
+                          onClick={() => inspect(shop)}
                         >
                           <Eye className="w-4 h-4" /> View Details & KYC
                         </Button>
@@ -318,7 +303,7 @@ export default function SellerApprovals() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/75 backdrop-blur-md"
-              onClick={() => setSelectedShop(null)}
+              onClick={closeInspect}
             />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
@@ -329,9 +314,7 @@ export default function SellerApprovals() {
               {/* Modal Header */}
               <div className="flex items-start justify-between pb-4 border-b border-dark-border">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 text-primary flex items-center justify-center font-bold text-xl">
-                    {(selectedShop.shopName || selectedShop.name || 'S')[0]}
-                  </div>
+                  <ShopAvatar shop={selectedShop} className="w-12 h-12 rounded-xl bg-primary/20 text-primary text-xl shrink-0" />
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="text-2xl font-bold">{selectedShop.shopName || 'Seller Store'}</h2>
@@ -347,7 +330,8 @@ export default function SellerApprovals() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedShop(null)}
+                  onClick={closeInspect}
+                  aria-label="Close"
                   className="p-2 text-slate-400 hover:text-white hover:bg-dark-bg rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -363,12 +347,26 @@ export default function SellerApprovals() {
                 </div>
                 <div className="bg-dark-bg p-4 rounded-xl border border-dark-border space-y-1">
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block">KYC Status</span>
-                  <p className="font-bold text-blue-400 text-base flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4" /> Verified & Compliant
-                  </p>
-                  <p className="text-xs text-slate-500">Identity Verified</p>
-                </div>
-                <div className="bg-dark-bg p-4 rounded-xl border border-dark-border space-y-1">
+                  {kycLoading ? (
+                    <p className="text-sm text-slate-400">Loading…</p>
+                  ) : selectedShop.kycSubmitted ? (
+                    <>
+                      <p className="font-bold text-blue-400 text-base flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" /> Documents on file
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {kyc?.submittedAt ? `Submitted ${new Date(kyc.submittedAt).toLocaleDateString()}` : 'Review the documents below'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-bold text-slate-300 text-base flex items-center gap-1.5">
+                        <ShieldAlert className="w-4 h-4" /> Not submitted
+                      </p>
+                      <p className="text-xs text-slate-500">No KYC documents on file</p>
+                    </>
+                  )}
+                </div>                <div className="bg-dark-bg p-4 rounded-xl border border-dark-border space-y-1">
                   <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Joined Date</span>
                   <p className="font-bold text-white text-base">
                     {new Date(selectedShop.createdAt || Date.now()).toLocaleDateString()}
@@ -388,100 +386,59 @@ export default function SellerApprovals() {
                   </span>
                 </div>
 
-                {(() => {
-                  const kyc = getKycDataForShop(selectedShop.email)
-                  const frontImg = kyc?.docFrontImage
-                  const backImg = kyc?.docBackImage
-                  const profilePic = kyc?.profilePic
-
-                  return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Document Front */}
-                      <div className="bg-dark-bg/80 border border-dark-border rounded-xl p-4 space-y-3">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-300 uppercase tracking-wider">Document Front View</span>
-                          <span className="text-green-400 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Front Verified
-                          </span>
-                        </div>
-                        {frontImg ? (
-                          <div
-                            onClick={() => setPreviewImage({ title: `${selectedShop.shopName} - Document Front View`, url: frontImg })}
-                            className="relative group aspect-video rounded-lg overflow-hidden border border-dark-border bg-black cursor-pointer"
+                {kycLoading ? (
+                  <div className="py-10 text-center text-slate-400 text-sm">Loading documents…</div>
+                ) : !kyc ? (
+                  <div className="rounded-xl border border-dashed border-dark-border bg-dark-card p-8 text-center">
+                    <FileText className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                    <p className="text-sm font-bold text-slate-300">No KYC documents on file</p>
+                    <p className="text-xs text-slate-500 mt-1">This seller registered before documents were stored on the server.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { label: 'Document Front View', url: kyc.front },
+                      { label: 'Document Back View', url: kyc.back },
+                    ].map(({ label, url }) => (
+                      <div key={label} className="bg-dark-bg/80 border border-dark-border rounded-xl p-4 space-y-3">
+                        <span className="font-bold text-slate-300 uppercase tracking-wider text-xs block">{label}</span>
+                        {url ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({ title: `${selectedShop.shopName} - ${label}`, url })}
+                            className="relative group block w-full aspect-video rounded-lg overflow-hidden border border-dark-border bg-black"
                           >
-                            <img src={frontImg} alt="Document Front View" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
-                              <Maximize2 className="w-4 h-4" /> Click to Expand
+                            <img src={url} alt={label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                            <div className="absolute inset-x-0 bottom-0 bg-black/60 py-1.5 flex items-center justify-center gap-1.5 text-white font-semibold text-xs">
+                              <Maximize2 className="w-3.5 h-3.5" /> Tap to view full size
                             </div>
-                          </div>
+                          </button>
                         ) : (
-                          <div className="aspect-video rounded-lg border border-dashed border-dark-border bg-dark-card flex flex-col items-center justify-center p-4 text-center">
-                            <div className="w-12 h-8 rounded bg-primary/20 border border-primary/30 flex items-center justify-center mb-2">
-                              <FileText className="w-5 h-5 text-primary" />
-                            </div>
-                            <p className="text-xs font-bold text-slate-300">National ID Card / Passport (Front)</p>
-                            <p className="text-[10px] text-slate-500 mt-1">Verified on file during registration</p>
+                          <div className="aspect-video rounded-lg border border-dashed border-dark-border bg-dark-card flex items-center justify-center text-xs text-slate-500">
+                            Image unavailable
                           </div>
                         )}
                       </div>
+                    ))}
 
-                      {/* Document Back */}
-                      <div className="bg-dark-bg/80 border border-dark-border rounded-xl p-4 space-y-3">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-300 uppercase tracking-wider">Document Back View</span>
-                          <span className="text-green-400 font-semibold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Back Verified
-                          </span>
-                        </div>
-                        {backImg ? (
-                          <div
-                            onClick={() => setPreviewImage({ title: `${selectedShop.shopName} - Document Back View`, url: backImg })}
-                            className="relative group aspect-video rounded-lg overflow-hidden border border-dark-border bg-black cursor-pointer"
-                          >
-                            <img src={backImg} alt="Document Back View" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs">
-                              <Maximize2 className="w-4 h-4" /> Click to Expand
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="aspect-video rounded-lg border border-dashed border-dark-border bg-dark-card flex flex-col items-center justify-center p-4 text-center">
-                            <div className="w-12 h-8 rounded bg-primary/20 border border-primary/30 flex items-center justify-center mb-2">
-                              <FileText className="w-5 h-5 text-primary" />
-                            </div>
-                            <p className="text-xs font-bold text-slate-300">National ID Card / Passport (Back)</p>
-                            <p className="text-[10px] text-slate-500 mt-1">Verified on file during registration</p>
-                          </div>
-                        )}
+                    {kyc.profile && (
+                      <div className="col-span-1 md:col-span-2 bg-dark-bg/80 border border-dark-border rounded-xl p-4 space-y-3">
+                        <span className="font-bold text-slate-300 uppercase tracking-wider text-xs block">Seller Profile Photo</span>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewImage({ title: `${selectedShop.shopName} - Profile Photo`, url: kyc.profile })}
+                          className="relative group block w-24 h-24 rounded-xl overflow-hidden border border-dark-border bg-black"
+                        >
+                          <img src={kyc.profile} alt="Profile" className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                        </button>
                       </div>
-
-                      {/* Profile Photo / Live Selfie if available */}
-                      {profilePic && (
-                        <div className="col-span-1 md:col-span-2 bg-dark-bg/80 border border-dark-border rounded-xl p-4 space-y-3">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-slate-300 uppercase tracking-wider">Seller Live Selfie / Profile Verification</span>
-                            <span className="text-blue-400 font-semibold flex items-center gap-1">
-                              <ShieldCheck className="w-3.5 h-3.5" /> Face Matched
-                            </span>
-                          </div>
-                          <div
-                            onClick={() => setPreviewImage({ title: `${selectedShop.shopName} - Owner Live Verification Photo`, url: profilePic })}
-                            className="relative group w-24 h-24 rounded-xl overflow-hidden border border-dark-border bg-black cursor-pointer"
-                          >
-                            <img src={profilePic} alt="Live Verification Photo" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                              <Maximize2 className="w-4 h-4" />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
+                    )}
+                  </div>
+                )}              </div>
 
               {/* Action Buttons in Modal */}
               <div className="flex justify-between items-center pt-4 border-t border-dark-border">
-                <Button variant="outline" onClick={() => setSelectedShop(null)}>
+                <Button variant="outline" onClick={closeInspect}>
                   Close Audit
                 </Button>
                 {selectedShop.shopStatus === 'pending' && (
@@ -500,40 +457,10 @@ export default function SellerApprovals() {
         )}
       </AnimatePresence>
 
-      {/* MODAL 2: FULL-RESOLUTION LIGHTBOX IMAGE PREVIEW MODAL */}
-      <AnimatePresence>
-        {previewImage && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              onClick={() => setPreviewImage(null)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative z-10 max-w-4xl w-full space-y-3"
-            >
-              <div className="flex items-center justify-between text-white bg-dark-card/90 px-4 py-2.5 rounded-xl border border-dark-border">
-                <span className="font-bold text-sm truncate">{previewImage.title}</span>
-                <button
-                  onClick={() => setPreviewImage(null)}
-                  className="p-1.5 hover:bg-dark-bg text-slate-300 hover:text-white rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="rounded-2xl overflow-hidden bg-black border border-dark-border max-h-[80vh] flex items-center justify-center">
-                <img src={previewImage.url} alt="KYC Document Preview" className="max-h-[78vh] w-auto object-contain" />
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Full-size viewer (fullscreen on phones, "open in new tab" available) */}
+      {previewImage && (
+        <ImageLightbox url={previewImage.url} title={previewImage.title} onClose={() => setPreviewImage(null)} />
+      )}    </div>
   )
 }
 
