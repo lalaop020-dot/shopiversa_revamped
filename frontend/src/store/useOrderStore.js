@@ -72,6 +72,10 @@ const useOrderStore = create(
           })
           order = data.data.order
         } catch (err) {
+          // The server answered and refused (stock, validation, 5xx): surface it.
+          // Faking a local order here would show "success" for an order the
+          // seller can never see.
+          if (err?.response) throw err
           console.warn('Backend API call failed, generating local fallback order:', err)
           const newId = 'ORD-' + Math.floor(10000 + Math.random() * 90000)
           const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)

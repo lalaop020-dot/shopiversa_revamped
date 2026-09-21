@@ -9,10 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.db.database import get_db
-from app.models.models import Order, OrderItem, SellerProduct, User, UserRole, OrderStatus, Notification, NotificationType
+from app.models.models import Order, OrderItem, Product, SellerProduct, User, UserRole, OrderStatus, Notification, NotificationType
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core.security import verify_password, hash_password
+from app.core.pricing import HOUSE_SELLER_EMAIL
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -80,6 +81,8 @@ class OrderItemIn(BaseModel):
     image: Optional[str] = None
     category: Optional[str] = None
     sellerEmail: Optional[str] = None
+    # Only honored for admin-placed orders: pins the line item to that seller's listing.
+    sellerId: Optional[int] = None
 
 
 class ShippingAddress(BaseModel):
@@ -119,6 +122,21 @@ async def create_order(data: OrderIn, user: User = Depends(current_user),
     # (never trust client-supplied price) and rejecting on insufficient stock.
     resolved = []
     for item in data.items:
+        if user.role == UserRole.admin and item.sellerId:
+            # Admin ordering from a specific seller's shop: the item must be that
+            # seller's own listing — never fall back to another seller's.
+            sp_result = await db.execute(
+                select(SellerProduct).where(
+                    SellerProduct.id == item.productId, SellerProduct.seller_id == item.sellerId
+                ).with_for_update()
+            )
+            sp = sp_result.scalar_one_or_none()
+            if not sp:
+                return err(f"'{item.name}' is not listed by the selected seller", 400)
+            if item.quantity > sp.stock:
+                return err(f"Insufficient stock for '{item.name}' (only {sp.stock} left)", 400)
+            resolved.append((item, sp))
+            continue
         sp_result = await db.execute(
             select(SellerProduct).where(SellerProduct.id == item.productId).with_for_update()
         )
@@ -126,8 +144,11 @@ async def create_order(data: OrderIn, user: User = Depends(current_user),
         if not sp:
             # Fallback 1: Lookup by global Product ID
             sp_result = await db.execute(
-                select(SellerProduct).where(SellerProduct.global_id == item.productId)
-                .order_by((SellerProduct.stock > 0).desc(), SellerProduct.price.asc())
+                select(SellerProduct).join(User, SellerProduct.seller_id == User.id)
+                .where(SellerProduct.global_id == item.productId)
+                .order_by((SellerProduct.stock > 0).desc(),
+                          (User.email == HOUSE_SELLER_EMAIL).asc(),  # real sellers before the house
+                          SellerProduct.price.asc())
                 .with_for_update()
             )
             sp = sp_result.scalars().first()

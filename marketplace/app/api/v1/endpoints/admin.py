@@ -14,6 +14,7 @@ from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, 
                                 Order, OrderStatus, Notification, NotificationType, Product)
 from app.core.deps import admin_only
 from app.core.response import ok, err
+from app.core.pricing import reprice_seller
 from app.api.v1.endpoints.orders import order_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -326,6 +327,9 @@ async def approve_package(req_id: str, admin: User = Depends(admin_only),
     else:
         sub = Subscription(seller_id=req.seller_id, package_name=PackageName(req.package_name))
     db.add(sub)
+    await db.flush()
+    # New package = new profit rate: re-price all of this seller's listings.
+    await reprice_seller(db, req.seller_id)
 
     db.add(Notification(user_id=req.seller_id, title="Package Upgrade Approved!",
                         message=f"Your {req.package_name} package is now active.",

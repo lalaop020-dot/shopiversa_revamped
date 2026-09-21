@@ -28,7 +28,6 @@ export default function MyProducts() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage]                   = useState(1)
   const [editingProduct, setEditingProduct] = useState(null)
-  const [editPrice, setEditPrice]         = useState('')
   const [editStock, setEditStock]         = useState('')
 
   // Multi-select state
@@ -112,16 +111,14 @@ export default function MyProducts() {
   // ── Edit ───────────────────────────────────────────────
   const handleEditClick = (product) => {
     setEditingProduct(product)
-    setEditPrice(product.price)
     setEditStock(product.stock)
   }
 
   const handleUpdateSubmit = (e) => {
     e.preventDefault()
-    if (!editPrice || parseFloat(editPrice) < 0) { toast.error('Invalid price amount'); return }
     if (editStock === '' || parseInt(editStock) < 0) { toast.error('Invalid stock quantity'); return }
+    // Price is set by the server from your package's profit rate — never sent from here.
     updateSellerProduct(sellerEmail, editingProduct.id, {
-      price: parseFloat(editPrice),
       stock: parseInt(editStock),
       status: parseInt(editStock) === 0 ? 'Out of Stock' : 'Active'
     })
@@ -351,14 +348,12 @@ export default function MyProducts() {
               You are modifying options for <strong className="text-white">{editingProduct.name}</strong>. Product titles, descriptions, and images can only be altered by system administrators.
             </p>
             <form onSubmit={handleUpdateSubmit} className="space-y-6">
-              <Input
-                label="Your Store Price ($)"
-                type="number"
-                step="0.01"
-                value={editPrice}
-                onChange={(e) => setEditPrice(e.target.value)}
-                required
-              />
+              <div className="p-3 bg-dark-bg border border-dark-border rounded-lg text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-slate-400">Storeroom price</span><span>{formatCurrency(editingProduct.storeroomPrice ?? editingProduct.price)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Your store price</span><span className="font-bold">{formatCurrency(editingProduct.price)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Your profit per unit</span><span className="font-bold text-green-500">+{formatCurrency(editingProduct.profitPerUnit ?? 0)}</span></div>
+                <p className="text-[10px] text-slate-500 pt-1">Store price is set automatically from your package's profit rate.</p>
+              </div>
               <Input
                 label="Your Stock Quantity"
                 type="number"

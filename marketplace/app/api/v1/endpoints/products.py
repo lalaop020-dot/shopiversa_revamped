@@ -10,6 +10,7 @@ from app.db.database import get_db
 from app.models.models import Product, SellerProduct, User, ProductStatus, Subscription, PackageName
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
+from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, reprice_product
 
 router = APIRouter(tags=["Products"])
 
@@ -52,7 +53,6 @@ async def gen_unique_seller_product_id(db: AsyncSession) -> int:
     raise HTTPException(500, "Could not generate a unique seller product ID, please retry")
 
 
-HOUSE_SELLER_EMAIL = "store@shopiversa.com"
 HOUSE_SHOP_NAME = "Shopiversa Store"
 
 
@@ -150,6 +150,8 @@ def seller_product_dict(sp: SellerProduct) -> dict:
         "id": sp.id, "globalId": sp.global_id,
         "name": gp.name if gp else "",
         "price": float(sp.price), "stock": sp.stock, "sales": sp.sales,
+        "storeroomPrice": float(gp.price) if gp else None,
+        "profitPerUnit": round(float(sp.price) - float(gp.price), 2) if gp else None,
         "status": sp.status.value,
         "image": gp.image if gp else None,
         "description": gp.description if gp else None,
@@ -257,6 +259,9 @@ async def update_product(product_id: int, data: ProductIn,
     for k, v in data.model_dump(exclude_unset=True).items():
         setattr(p, k, v)
     db.add(p)
+    await db.flush()
+    # Storeroom price is the cost basis for every seller's price: keep them in step.
+    await reprice_product(db, p)
     await db.commit()
     await db.refresh(p)
     return ok({"product": product_dict(p)})
@@ -399,7 +404,7 @@ async def import_product(global_id: int, user: User = Depends(seller_only),
         id=await gen_unique_seller_product_id(db),
         seller_id=user.id,
         global_id=global_id,
-        price=gp.price,
+        price=seller_price(gp.price, pkg),  # storeroom price + package profit markup
         stock=gp.stock,
     )
     db.add(sp)
@@ -422,7 +427,8 @@ async def update_seller_product(product_id: int, data: SellerProductUpdate,
     sp = result.scalar_one_or_none()
     if not sp:
         return err("Product not found", 404)
-    if data.price is not None: sp.price = data.price
+    # `data.price` is deliberately ignored: a seller's price is always the
+    # storeroom price plus their package's profit markup (see app/core/pricing.py).
     if data.stock is not None: sp.stock = data.stock
     if data.status is not None: sp.status = data.status
     db.add(sp)
@@ -449,6 +455,24 @@ async def delete_seller_product(product_id: int, user: User = Depends(seller_onl
     return ok({"success": True})
 
 
+# Admin: one seller shop's own listings (used by "Place Order" so only that shop's products show)
+@router.get("/admin/sellers/{seller_id}/products")
+async def admin_seller_products(seller_id: int, admin: User = Depends(admin_only),
+                                db: AsyncSession = Depends(get_db)):
+    from sqlalchemy.orm import selectinload
+    q = select(SellerProduct).options(
+        selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller)
+    ).join(Product, SellerProduct.global_id == Product.id)\
+        .where(SellerProduct.seller_id == seller_id, SellerProduct.status == ProductStatus.Active,
+               Product.is_available == True)\
+        .order_by(Product.name)
+    items = (await db.execute(q)).scalars().all()
+    products = []
+    for sp in items:
+        products.append(seller_product_dict(sp))
+    return ok({"products": products, "total": len(products)})
+
+
 # Public marketplace — all active seller products
 @router.get("/marketplace/products")
 async def marketplace_products(
@@ -464,6 +488,7 @@ async def marketplace_products(
     # product has at least one listing.
     best = select(SellerProduct.id)\
         .join(Product, SellerProduct.global_id == Product.id)\
+        .join(User, SellerProduct.seller_id == User.id)\
         .where(SellerProduct.status == ProductStatus.Active, Product.is_available == True)
     if category:
         # Case-insensitive: category nav links lowercase the name for the URL
@@ -473,7 +498,10 @@ async def marketplace_products(
     if search:
         best = best.where(Product.name.ilike(f"%{search}%"))
     best = best.distinct(SellerProduct.global_id).order_by(
-        SellerProduct.global_id, (SellerProduct.stock <= 0), SellerProduct.price.asc(), SellerProduct.id
+        SellerProduct.global_id,
+        (SellerProduct.stock <= 0),          # in-stock offers first
+        (User.email == HOUSE_SELLER_EMAIL),  # real sellers before the house fallback (which is always cheapest)
+        SellerProduct.price.asc(), SellerProduct.id,
     )
     q = select(SellerProduct).options(
         selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller)

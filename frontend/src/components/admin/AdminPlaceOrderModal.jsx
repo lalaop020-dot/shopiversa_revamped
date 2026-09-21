@@ -71,26 +71,12 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
     setLoadingProducts(true)
     setStep(2)
     try {
-      const { data } = await api.get('/marketplace/products?limit=100')
-      const allProds = data?.data?.products || []
-      let sellerProds = allProds.filter(p => 
-        (seller.id && p.sellerId === seller.id) ||
-        (seller.email && p.sellerEmail === seller.email) ||
-        (seller.shopName && p.shopName === seller.shopName)
-      )
-      if (!sellerProds.length) {
-        const storeRes = await api.get('/products?limit=100')
-        const storeProds = storeRes?.data?.data?.products || []
-        sellerProds = storeProds.map(p => ({
-          ...p,
-          sellerId: seller.id,
-          sellerEmail: seller.email,
-          shopName: seller.shopName || seller.name
-        }))
-      }
-      setProducts(sellerProds)
+      // Only this shop's own listings — never the whole storeroom.
+      const { data } = await api.get(`/admin/sellers/${seller.id}/products`)
+      setProducts(data?.data?.products || [])
     } catch {
       setProducts([])
+      toast.error('Could not load this shop\'s products')
     } finally {
       setLoadingProducts(false)
     }
@@ -101,7 +87,8 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
       const existing = prev.find(item => item.productId === product.id)
       if (!existing) {
         if (delta <= 0) return prev
-        const storeroomPrice = product.storeroomPrice || product.globalPrice || Math.round(product.price * 0.83 * 100) / 100
+        // Cost basis comes from the server; never guess it from the sale price.
+        const storeroomPrice = product.storeroomPrice ?? product.price
         return [...prev, {
           productId: product.id,
           name: product.name,
@@ -129,7 +116,8 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
   const totalPrice = useMemo(() => cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cartItems])
   const storeroomPriceTotal = useMemo(() => cartItems.reduce((sum, item) => sum + (item.storeroomPrice * item.quantity), 0), [cartItems])
   const sellerProfit = useMemo(() => Math.max(0, totalPrice - storeroomPriceTotal), [totalPrice, storeroomPriceTotal])
-  const profitPercentage = useMemo(() => totalPrice > 0 ? Math.round((sellerProfit / totalPrice) * 100) : 0, [sellerProfit, totalPrice])
+  // Profit is a markup on the storeroom price (17% / 25% / 35% by package).
+  const profitPercentage = useMemo(() => storeroomPriceTotal > 0 ? Math.round((sellerProfit / storeroomPriceTotal) * 100) : 0, [sellerProfit, storeroomPriceTotal])
 
   const handlePlaceOrder = async () => {
     if (!cartItems.length) return toast.error('Please select at least one product')
