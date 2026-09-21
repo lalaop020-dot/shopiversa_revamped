@@ -62,10 +62,9 @@ export default function PackageManagement() {
       priceVal: 0,
       period: '/mo',
       features: [
-        'Up to 50 active products',
+        'Up to 300 active products',
         'Basic statistics & reports',
-        'Standard customer support',
-        '3% transaction fee'
+        'Standard customer support'
       ],
       current: sub.name === 'Silver'
     },
@@ -75,11 +74,9 @@ export default function PackageManagement() {
       priceVal: 499,
       period: '/mo',
       features: [
-        'Up to 500 active products',
+        'Up to 1000 active products',
         'Advanced analytics & heatmaps',
-        'Priority customer support (24/7)',
-        '1.5% transaction fee',
-        'Exclusive promotion tools'
+        'Priority customer support (24/7)'
       ],
       current: sub.name === 'Gold',
       popular: true
@@ -90,10 +87,9 @@ export default function PackageManagement() {
       priceVal: 999,
       period: '/mo',
       features: [
-        'Unlimited active products',
+        'Up to 2000 active products',
         'Real-time deep analytics API',
         'Dedicated account manager',
-        '0.5% transaction fee',
         'Custom storefront design themes',
         'Beta access to new features'
       ],
