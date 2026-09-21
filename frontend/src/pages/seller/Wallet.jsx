@@ -4,9 +4,9 @@ import { Button } from '../../components/common/Button'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import useAuthStore from '../../store/useAuthStore'
-import usePlatformStore, { DEFAULT_BALANCE } from '../../store/usePlatformStore'
-import toast from 'react-hot-toast'
-import { motion } from 'framer-motion'
+import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
+
+const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
 
 export default function Wallet() {
   const { user } = useAuthStore()
@@ -18,6 +18,8 @@ export default function Wallet() {
   }
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions)
+  const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
+  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
   const { fetchBalance, addDepositRequest, addWithdrawalRequest, fetchTransactions } = usePlatformStore()
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
@@ -33,9 +35,19 @@ export default function Wallet() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetchBalance()
-    fetchTransactions()
-  }, [])
+    const refreshData = () => {
+      fetchBalance()
+      fetchTransactions()
+      usePlatformStore.getState().fetchCurrentPackage()
+    }
+    refreshData()
+    const interval = setInterval(refreshData, 10000)
+    window.addEventListener('focus', refreshData)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', refreshData)
+    }
+  }, [fetchBalance, fetchTransactions])
 
   const activeAdminWallet = depositCrypto === 'ETH (TRC20)' 
     ? (adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
@@ -95,8 +107,16 @@ export default function Wallet() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">My Wallet</h1>
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">My Wallet</h1>
+            <span className="bg-primary/10 border border-primary/30 text-primary text-xs font-bold px-3 py-1 rounded-full">
+              {sub.name} Package ({activeProfitRate} Profit Margin)
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs mt-1">Manage deposits, withdrawals, and store balance real-time.</p>
+        </div>
         <div className="flex gap-4">
           <Button variant="outline" onClick={() => setIsWithdrawModalOpen(true)}>Withdraw</Button>
           <Button onClick={() => setIsDepositModalOpen(true)}><Plus className="w-4 h-4 mr-1" /> Deposit</Button>

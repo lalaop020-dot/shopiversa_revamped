@@ -55,14 +55,19 @@ export default function PackageManagement() {
       ? adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
       : adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b'
 
+  const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
+  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
+
   const packages = [
     {
       name: 'Silver',
       price: '$0',
       priceVal: 0,
       period: '/mo',
+      profitPercentage: '17%',
       features: [
         'Up to 300 active products',
+        '17% Seller Profit Percentage',
         'Basic statistics & reports',
         'Standard customer support'
       ],
@@ -73,8 +78,10 @@ export default function PackageManagement() {
       price: '$499',
       priceVal: 499,
       period: '/mo',
+      profitPercentage: '25%',
       features: [
         'Up to 1000 active products',
+        '25% Seller Profit Percentage',
         'Advanced analytics & heatmaps',
         'Priority customer support (24/7)'
       ],
@@ -86,8 +93,10 @@ export default function PackageManagement() {
       price: '$999',
       priceVal: 999,
       period: '/mo',
+      profitPercentage: '35%',
       features: [
         'Up to 2000 active products',
+        '35% Seller Profit Percentage',
         'Real-time deep analytics API',
         'Dedicated account manager',
         'Custom storefront design themes',
@@ -163,9 +172,22 @@ export default function PackageManagement() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Package Subscriptions</h1>
-        <p className="text-slate-400">Upgrade your membership plan to unlock new premium capabilities.</p>
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Package Subscriptions</h1>
+          <p className="text-slate-400">Upgrade your membership plan to unlock new product limits & higher profit rates.</p>
+        </div>
+        <div className="bg-primary/10 border border-primary/30 rounded-2xl px-5 py-3 flex items-center gap-4">
+          <div>
+            <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Current Active Plan</div>
+            <div className="text-lg font-extrabold text-white flex items-center gap-2">
+              <span>{sub.name} Package</span>
+              <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-0.5 rounded-full">
+                {activeProfitRate} Profit Margin
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {sub.status === 'Frozen' && (

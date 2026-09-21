@@ -22,6 +22,12 @@ export default function SellerOrders() {
 
   useEffect(() => {
     fetchSellerOrders()
+    const interval = setInterval(fetchSellerOrders, 10000)
+    window.addEventListener('focus', fetchSellerOrders)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', fetchSellerOrders)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

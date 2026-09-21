@@ -4,8 +4,15 @@ import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
 import { TrendingUp, TrendingDown, Users, ShoppingCart, DollarSign, Package, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react'
 import useAuthStore from '../store/useAuthStore'
-import usePlatformStore, { DEFAULT_BALANCE } from '../store/usePlatformStore'
+import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../store/usePlatformStore'
 import { useProductStore } from '../store/useProductStore'
+import useOrderStore from '../store/useOrderStore'
+
+export const PROFIT_RATES = {
+  Silver: '17%',
+  Gold: '25%',
+  Platinum: '35%'
+}
 
 export default function DashboardOverview({ role }) {
   const navigate = useNavigate()
@@ -16,22 +23,39 @@ export default function DashboardOverview({ role }) {
   const transactions = usePlatformStore((state) => state.transactions) || []
   const packageRequests = usePlatformStore((state) => state.packageRequests) || []
   const adminDashboardStats = usePlatformStore((state) => state.adminDashboardStats)
+  const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
 
   const storeroomProducts = useProductStore((state) => state.storeroomProducts) || []
   const sellerProducts = useProductStore((state) => state.sellerProducts) || {}
   const categories = useProductStore((state) => state.categories) || []
 
+  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
+
   useEffect(() => {
-    if (role === 'admin') {
-      usePlatformStore.getState().fetchAdminTransactions()
-      usePlatformStore.getState().fetchAdminPackageRequests()
-      usePlatformStore.getState().fetchAdminDashboardStats()
-      useProductStore.getState().fetchStoreroomProducts()
-    } else {
-      usePlatformStore.getState().fetchBalance()
-      usePlatformStore.getState().fetchTransactions()
-      usePlatformStore.getState().fetchPackageRequests()
-      useProductStore.getState().fetchSellerProducts(email)
+    const refreshData = () => {
+      if (role === 'admin') {
+        usePlatformStore.getState().fetchAdminTransactions()
+        usePlatformStore.getState().fetchAdminPackageRequests()
+        usePlatformStore.getState().fetchAdminDashboardStats()
+        useProductStore.getState().fetchStoreroomProducts()
+        useOrderStore.getState().fetchAdminOrders()
+      } else {
+        usePlatformStore.getState().fetchBalance()
+        usePlatformStore.getState().fetchTransactions()
+        usePlatformStore.getState().fetchPackageRequests()
+        usePlatformStore.getState().fetchCurrentPackage()
+        useProductStore.getState().fetchSellerProducts(email)
+        useOrderStore.getState().fetchSellerOrders()
+      }
+    }
+
+    refreshData()
+    const interval = setInterval(refreshData, 10000)
+    window.addEventListener('focus', refreshData)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', refreshData)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, email])
@@ -274,6 +298,23 @@ export default function DashboardOverview({ role }) {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {role === 'seller' && (
+        <div className="p-4 bg-primary/10 border border-primary/25 rounded-2xl flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h3 className="font-bold text-white text-base flex items-center gap-2">
+              <span>Active Package:</span>
+              <span className="text-primary bg-primary/20 px-2.5 py-0.5 rounded-full text-sm font-extrabold">{sub.name}</span>
+            </h3>
+            <p className="text-xs text-slate-300 mt-1">
+              Your store currently earns a <strong className="text-green-400 font-bold">{activeProfitRate} Profit Margin</strong> based on your {sub.name} plan.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/seller/packages')}>
+            View / Upgrade Plan
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, i) => (
           <Card

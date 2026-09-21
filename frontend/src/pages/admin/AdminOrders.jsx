@@ -30,6 +30,12 @@ export default function AdminOrders() {
 
   useEffect(() => {
     load()
+    const interval = setInterval(load, 10000)
+    window.addEventListener('focus', load)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', load)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter])
 

@@ -192,9 +192,8 @@ export default function ProductDetail() {
               </div>
               <div className="flex-grow space-y-1">
                 <div className="flex items-center gap-2">
-                  <div className="font-bold text-lg">{product.shopName || 'Unknown Shop'}</div>
                   <span className="flex items-center gap-1 text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full font-bold uppercase">
-                    <ShieldCheck className="w-3 h-3" /> Verified Seller
+                    <ShieldCheck className="w-3 h-3" /> Verified Merchant
                   </span>
                 </div>
                 {product.shopDesc && <p className="text-sm text-slate-400">{product.shopDesc}</p>}
@@ -219,7 +218,7 @@ export default function ProductDetail() {
         {isChatOpen && product.sellerEmail && (
           <ChatWindow
             recipientEmail={product.sellerEmail}
-            recipientName={product.shopName || product.sellerEmail}
+            recipientName={product.sellerEmail}
             product={{ id: product.id, name: product.name, image: product.image }}
             onClose={() => setIsChatOpen(false)}
           />
