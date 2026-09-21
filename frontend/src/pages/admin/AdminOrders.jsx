@@ -299,12 +299,18 @@ export default function AdminOrders() {
               ))}
             </div>
 
-            <div className="border-t border-dark-border pt-4 space-y-1 text-sm">
-              <div className="flex justify-between text-slate-400"><span>Subtotal</span><span>${(selectedOrder.subtotal || 0).toFixed(2)}</span></div>
-              <div className="flex justify-between text-slate-400"><span>Tax</span><span>${(selectedOrder.tax || 0).toFixed(2)}</span></div>
-              <div className="flex justify-between text-slate-400"><span>Shipping</span><span>${(selectedOrder.shipping || 0).toFixed(2)}</span></div>
-              <div className="flex justify-between font-bold text-lg pt-2 border-t border-dark-border mt-2">
-                <span>Total</span><span>${(selectedOrder.total || 0).toFixed(2)}</span>
+            <div className="border-t border-dark-border pt-4 space-y-2 text-sm">
+              <div className="flex justify-between text-slate-400">
+                <span>Storeroom price</span>
+                <span className="font-bold text-slate-200">${(selectedOrder.subtotal || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Seller profit{selectedOrder.subtotal > 0 && selectedOrder.tax ? ` (${Math.round((selectedOrder.tax / selectedOrder.subtotal) * 100)}%)` : ''}</span>
+                <span className="font-bold text-green-500">+${(selectedOrder.tax || 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-3 border-t border-dark-border mt-2">
+                <span className="text-white text-lg font-bold">Total price</span>
+                <span className="text-primary text-2xl font-bold">${(selectedOrder.total || 0).toFixed(2)}</span>
               </div>
             </div>
           </motion.div>
