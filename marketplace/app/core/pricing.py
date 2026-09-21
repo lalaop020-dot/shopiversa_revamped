@@ -22,6 +22,15 @@ PROFIT_RATES = {
 }
 DEFAULT_PACKAGE = PackageName.Silver
 
+# What an upgrade costs (USD) and the tier order. Server-side truth: the price a
+# client sends with an upgrade request is never trusted.
+PACKAGE_PRICES = {
+    PackageName.Silver: Decimal("0"),
+    PackageName.Gold: Decimal("499"),
+    PackageName.Platinum: Decimal("999"),
+}
+PACKAGE_RANK = {PackageName.Silver: 0, PackageName.Gold: 1, PackageName.Platinum: 2}
+
 _CENT = Decimal("0.01")
 
 

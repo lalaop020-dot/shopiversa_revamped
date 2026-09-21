@@ -7,7 +7,7 @@ from sqlalchemy import select, func, distinct
 from decimal import Decimal
 
 from app.db.database import get_db
-from app.models.models import Product, SellerProduct, User, ProductStatus, Subscription, PackageName
+from app.models.models import Product, SellerProduct, User, ProductStatus, Subscription, PackageName, PackageStatus
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, reprice_product
@@ -379,6 +379,8 @@ async def import_product(global_id: int, user: User = Depends(seller_only),
     sub_result = await db.execute(select(Subscription).where(Subscription.seller_id == user.id))
     sub = sub_result.scalar_one_or_none()
     pkg = sub.package_name if sub else PackageName.Silver
+    if sub and sub.status == PackageStatus.Frozen:
+        return err("Your subscription is frozen, so you can't add products. Please contact support.", 403)
     limit = PACKAGE_LIMITS[pkg]
 
     count = (await db.execute(

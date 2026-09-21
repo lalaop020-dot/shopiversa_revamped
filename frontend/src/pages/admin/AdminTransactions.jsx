@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, X, ShieldAlert, CheckCircle2, History, RefreshCw } from 'lucide-react'
+import { Check, X, ShieldAlert, CheckCircle2, History, RefreshCw, Award } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import usePlatformStore from '../../store/usePlatformStore'
@@ -7,14 +7,17 @@ import ProofViewer from '../../components/admin/ProofViewer'
 import toast from 'react-hot-toast'
 
 export default function AdminTransactions() {
-  const { fetchAdminTransactions, approveDeposit, rejectDeposit, approveWithdrawal, rejectWithdrawal } = usePlatformStore()
+  const { fetchAdminTransactions, approveDeposit, rejectDeposit, approveWithdrawal, rejectWithdrawal,
+          fetchAdminPackageRequests, approvePackageRequest, rejectPackageRequest } = usePlatformStore()
   const [transactions, setTransactions] = useState([])
+  const [pkgRequests, setPkgRequests] = useState([])
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     setLoading(true)
-    const txns = await fetchAdminTransactions()
+    const [txns, reqs] = await Promise.all([fetchAdminTransactions(), fetchAdminPackageRequests()])
     setTransactions(txns)
+    setPkgRequests(reqs)
     setLoading(false)
   }
 
@@ -38,6 +41,18 @@ export default function AdminTransactions() {
     } catch (err) { toast.error('Action failed') }
   }
 
+  const handlePackage = async (req, approve) => {
+    try {
+      if (approve) await approvePackageRequest(req.id)
+      else await rejectPackageRequest(req.id)
+      toast.success(approve ? `${req.packageName} package approved for ${req.sellerEmail}` : 'Package request rejected')
+      await load()
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Action failed')
+    }
+  }
+
+  const pendingPackages = pkgRequests.filter(r => r.status === 'Pending')
   const pending = transactions.filter(t => t.status === 'Pending')
   const completed = transactions.filter(t => t.status !== 'Pending')
 
@@ -92,6 +107,52 @@ export default function AdminTransactions() {
                     <div className="flex gap-2 justify-end">
                       <Button size="sm" onClick={() => handleApprove(tx)} className="bg-green-600 hover:bg-green-700 h-8 px-3"><Check className="w-3 h-3" /></Button>
                       <Button size="sm" variant="outline" onClick={() => handleReject(tx)} className="border-red-500/50 text-red-400 hover:bg-red-500/10 h-8 px-3"><X className="w-3 h-3" /></Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Package upgrade requests (seller paid for a higher plan; screenshot attached) */}
+      <Card className="p-0 overflow-hidden">
+        <div className="p-6 border-b border-dark-border flex items-center justify-between">
+          <h3 className="font-bold flex items-center gap-2 text-accent-gold">
+            <Award className="w-5 h-5" /> Package Upgrade Requests ({pendingPackages.length})
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-dark-bg text-slate-400 text-sm">
+              <tr>
+                <th className="px-6 py-4 font-medium">Req ID</th>
+                <th className="px-6 py-4 font-medium">Seller</th>
+                <th className="px-6 py-4 font-medium">Plan</th>
+                <th className="px-6 py-4 font-medium">Price</th>
+                <th className="px-6 py-4 font-medium">TXID</th>
+                <th className="px-6 py-4 font-medium">Screenshot</th>
+                <th className="px-6 py-4 font-medium">Date</th>
+                <th className="px-6 py-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-dark-border">
+              {pendingPackages.length === 0 ? (
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-400">No pending package requests</td></tr>
+              ) : pendingPackages.map((req) => (
+                <tr key={req.id} className="hover:bg-dark-bg/50 transition-colors">
+                  <td className="px-6 py-4 font-mono text-sm">{req.id}</td>
+                  <td className="px-6 py-4 text-sm font-semibold">{req.sellerEmail}</td>
+                  <td className="px-6 py-4 font-bold text-primary">{req.packageName}</td>
+                  <td className="px-6 py-4 font-bold">${req.price}</td>
+                  <td className="px-6 py-4 font-mono text-xs max-w-[200px] truncate text-slate-400" title={req.txHash}>{req.txHash || '—'}</td>
+                  <td className="px-6 py-4"><ProofViewer url={req.proofImage} title={`${req.packageName} upgrade payment`} /></td>
+                  <td className="px-6 py-4 text-slate-400 text-sm">{req.date}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" onClick={() => handlePackage(req, true)} className="bg-green-600 hover:bg-green-700 h-8 px-3"><Check className="w-3 h-3" /></Button>
+                      <Button size="sm" variant="outline" onClick={() => handlePackage(req, false)} className="border-red-500/50 text-red-400 hover:bg-red-500/10 h-8 px-3"><X className="w-3 h-3" /></Button>
                     </div>
                   </td>
                 </tr>

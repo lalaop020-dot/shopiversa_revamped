@@ -344,6 +344,8 @@ async def approve_package(req_id: str, admin: User = Depends(admin_only),
     req = result.scalar_one_or_none()
     if not req:
         return err("Request not found", 404)
+    if req.status != TxStatus.Pending:
+        return err(f"This request was already {req.status.value.lower()}", 400)
     req.status = TxStatus.Approved
     db.add(req)
 
@@ -375,6 +377,8 @@ async def reject_package(req_id: str, admin: User = Depends(admin_only),
     req = result.scalar_one_or_none()
     if not req:
         return err("Request not found", 404)
+    if req.status != TxStatus.Pending:
+        return err(f"This request was already {req.status.value.lower()}", 400)
     req.status = TxStatus.Rejected
     db.add(req)
     db.add(Notification(user_id=req.seller_id, title="Package Request Rejected",

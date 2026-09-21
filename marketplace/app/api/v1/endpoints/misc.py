@@ -8,7 +8,7 @@ from typing import Optional
 from decimal import Decimal
 
 from app.db.database import get_db
-from app.models.models import (PackageRequest, Subscription, PackageName, TxStatus,
+from app.models.models import (PackageRequest, Subscription, PackageName, PackageStatus, TxStatus,
                                 ChatMessage, Notification, NotificationType, SupportTicket,
                                 TicketPriority, TicketStatus, ContactMessage, SellerProduct,
                                 User, UserRole)
@@ -42,10 +42,18 @@ async def current_package(user: User = Depends(seller_only), db: AsyncSession = 
     return ok({"name": sub.package_name.value, "status": sub.status.value})
 
 
+def my_request_dict(r: PackageRequest, seller_email: str) -> dict:
+    return {
+        "id": r.id, "sellerEmail": seller_email, "packageName": r.package_name,
+        "price": float(r.price) if r.price else None,
+        "status": r.status.value, "date": r.created_at.strftime("%Y-%m-%d"),
+        "proofImage": r.proof_image if (r.proof_image or "").startswith("http") else None,
+    }
+
+
 @router.post("/packages/request")
 async def request_package(
     packageName: str = Form(...),
-    price: Optional[float] = Form(None),
     walletAddress: Optional[str] = Form(None),
     txHash: Optional[str] = Form(None),
     proof: Optional[UploadFile] = File(None),
@@ -53,9 +61,26 @@ async def request_package(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        PackageName(packageName)
+        target = PackageName(packageName)
     except ValueError:
         return err(f"packageName must be one of: {', '.join(m.value for m in PackageName)}", 422)
+
+    # Cheap checks first, so nothing is uploaded for a request that can't be accepted.
+    sub = (await db.execute(select(Subscription).where(Subscription.seller_id == user.id))).scalar_one_or_none()
+    current = sub.package_name if sub else DEFAULT_PACKAGE
+    if sub and sub.status == PackageStatus.Frozen:
+        return err("Your subscription is frozen. Please contact support.", 403)
+    if PACKAGE_RANK[target] <= PACKAGE_RANK[current]:
+        return err(f"You are already on the {current.value} package"
+                   + ("" if target == current else f", so {target.value} isn't an upgrade"), 400)
+    pending = await db.execute(
+        select(PackageRequest.id).where(
+            PackageRequest.seller_id == user.id, PackageRequest.status == TxStatus.Pending).limit(1)
+    )
+    if pending.first():
+        return err("You already have a pending upgrade request. Please wait for admin approval.", 400)
+    if not txHash or not txHash.strip():
+        return err("Transaction ID (TXID) is required", 400)
 
     # The admin approves an upgrade by checking the payment screenshot, so it's mandatory.
     try:
@@ -68,29 +93,24 @@ async def request_package(
     req = PackageRequest(
         id=await gen_unique_id(db, PackageRequest, "PKG"),
         seller_id=user.id,
-        package_name=packageName,
-        price=Decimal(str(price)) if price else None,
+        package_name=target.value,
+        price=PACKAGE_PRICES[target],  # server-side price; the client's is ignored
         wallet_address=walletAddress,
-        tx_hash=txHash,
+        tx_hash=txHash.strip(),
         proof_image=proof_image,
     )
     db.add(req)
+    # Tell the admins there's something to review.
+    admins = (await db.execute(select(User.id).where(User.role == UserRole.admin))).scalars().all()
+    for admin_id in admins:
+        db.add(Notification(
+            user_id=admin_id, title="Package upgrade request",
+            message=f"{user.shop_name or user.email} requested the {target.value} package (${PACKAGE_PRICES[target]}).",
+            type=NotificationType.package,
+        ))
     await db.commit()
     await db.refresh(req)
-
-    # Load seller for response
-    result = await db.execute(
-        select(PackageRequest).options(selectinload(PackageRequest.seller)).where(PackageRequest.id == req.id)
-    )
-    req = result.scalar_one()
-    return ok({
-        "request": {
-            "id": req.id, "packageName": req.package_name,
-            "sellerEmail": req.seller.email if req.seller else None,
-            "price": float(req.price) if req.price else None,
-            "status": req.status.value, "date": req.created_at.strftime("%Y-%m-%d"),
-        }
-    }, 201)
+    return ok({"request": my_request_dict(req, user.email)}, 201)
 
 
 @router.get("/packages/requests")
@@ -99,14 +119,7 @@ async def my_package_requests(user: User = Depends(seller_only), db: AsyncSessio
         select(PackageRequest).where(PackageRequest.seller_id == user.id)
         .order_by(PackageRequest.created_at.desc())
     )
-    reqs = result.scalars().all()
-    return ok({"requests": [
-        {"id": r.id, "packageName": r.package_name,
-         "price": float(r.price) if r.price else None,
-         "status": r.status.value, "date": r.created_at.strftime("%Y-%m-%d")}
-        for r in reqs
-    ]})
-
+    return ok({"requests": [my_request_dict(r, user.email) for r in result.scalars().all()]})
 
 # â”€â”€ Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Three conversation shapes are allowed: customer<->seller, seller<->admin,

@@ -162,7 +162,7 @@ const usePlatformStore = create(
       addPackageRequest: async (email, packageName, price, walletAddress, txHash, proofFile) => {
         const form = new FormData()
         form.append('packageName', packageName)
-        if (price != null) form.append('price', price)
+        // price is decided by the server (Silver 0 / Gold 499 / Platinum 999)
         if (walletAddress) form.append('walletAddress', walletAddress)
         if (txHash) form.append('txHash', txHash)
         if (proofFile) form.append('proof', proofFile)

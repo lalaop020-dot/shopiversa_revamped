@@ -28,11 +28,15 @@ export default function PackageManagement() {
     [allPackageRequests, email]
   )
 
+  // Refresh the plan + request status regularly, so a seller sees their new
+  // package (and unlocked limits / profit rate) soon after the admin approves.
   useEffect(() => {
-    fetchCurrentPackage()
-    fetchPackageRequests()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    const refresh = () => { fetchCurrentPackage(); fetchPackageRequests() }
+    refresh()
+    const interval = setInterval(refresh, 10000)
+    window.addEventListener('focus', refresh)
+    return () => { clearInterval(interval); window.removeEventListener('focus', refresh) }
+  }, [fetchCurrentPackage, fetchPackageRequests])
 
   // Modal state
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
