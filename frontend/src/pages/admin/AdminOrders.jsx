@@ -26,6 +26,25 @@ const getSellerProfitPct = (order) => {
   return PROFIT_RATES[pkgName] || '17%'
 }
 
+const getOrderPricingBreakdown = (order) => {
+  if (!order) return { profitPctLabel: '17%', storeroomPrice: 0, sellerProfit: 0, totalPrice: 0 }
+  const profitPctLabel = getSellerProfitPct(order)
+  const profitRate = parseFloat(profitPctLabel) / 100
+  const total = order.total || 0
+  let storeroomPrice = 0
+  let sellerProfit = 0
+
+  if (order.subtotal > 0 && order.tax > 0 && order.subtotal !== order.total) {
+    storeroomPrice = order.subtotal
+    sellerProfit = order.tax
+  } else {
+    storeroomPrice = Math.round((total / (1 + profitRate)) * 100) / 100
+    sellerProfit = Math.round((total - storeroomPrice) * 100) / 100
+  }
+
+  return { profitPctLabel, storeroomPrice, sellerProfit, totalPrice: total }
+}
+
 export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filter, setFilter] = useState('All')
@@ -314,20 +333,25 @@ export default function AdminOrders() {
               ))}
             </div>
 
-            <div className="border-t border-dark-border pt-4 space-y-2 text-sm">
-              <div className="flex justify-between text-slate-400">
-                <span>Storeroom price</span>
-                <span className="font-bold text-slate-200">${(selectedOrder.subtotal || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Seller profit ({getSellerProfitPct(selectedOrder)})</span>
-                <span className="font-bold text-green-500">+${(selectedOrder.tax || 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center pt-3 border-t border-dark-border mt-2">
-                <span className="text-white text-lg font-bold">Total price</span>
-                <span className="text-primary text-2xl font-bold">${(selectedOrder.total || 0).toFixed(2)}</span>
-              </div>
-            </div>
+            {(() => {
+              const breakdown = getOrderPricingBreakdown(selectedOrder)
+              return (
+                <div className="border-t border-dark-border pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between text-slate-400">
+                    <span>Storeroom price</span>
+                    <span className="font-bold text-slate-200">${breakdown.storeroomPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Seller profit ({breakdown.profitPctLabel})</span>
+                    <span className="font-bold text-green-500">+${breakdown.sellerProfit.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t border-dark-border mt-2">
+                    <span className="text-white text-lg font-bold">Total price</span>
+                    <span className="text-primary text-2xl font-bold">${breakdown.totalPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              )
+            })()}
           </motion.div>
         </div>
       )}
