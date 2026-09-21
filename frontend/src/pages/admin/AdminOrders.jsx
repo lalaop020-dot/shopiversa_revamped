@@ -6,10 +6,25 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
+import usePlatformStore from '../../store/usePlatformStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import AdminPlaceOrderModal from '../../components/admin/AdminPlaceOrderModal'
 
 const FILTERS = ['All', ...ORDER_FLOW, 'Cancelled']
+const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
+
+const getSellerProfitPct = (order) => {
+  if (!order) return '17%'
+  if (order.subtotal > 0 && order.tax > 0) {
+    const calcPct = Math.round((order.tax / order.subtotal) * 100)
+    if (calcPct === 17 || calcPct === 25 || calcPct === 35) return `${calcPct}%`
+  }
+  const sellerSubscriptions = usePlatformStore.getState()?.sellerSubscriptions || {}
+  const sellerEmail = order.items?.[0]?.sellerEmail || order.customerEmail || ''
+  const sub = sellerSubscriptions[sellerEmail] || sellerSubscriptions['me']
+  const pkgName = sub?.name || sub?.packageName
+  return PROFIT_RATES[pkgName] || '17%'
+}
 
 export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -305,7 +320,7 @@ export default function AdminOrders() {
                 <span className="font-bold text-slate-200">${(selectedOrder.subtotal || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-400">
-                <span>Seller profit{selectedOrder.subtotal > 0 && selectedOrder.tax ? ` (${Math.round((selectedOrder.tax / selectedOrder.subtotal) * 100)}%)` : ''}</span>
+                <span>Seller profit ({getSellerProfitPct(selectedOrder)})</span>
                 <span className="font-bold text-green-500">+${(selectedOrder.tax || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pt-3 border-t border-dark-border mt-2">

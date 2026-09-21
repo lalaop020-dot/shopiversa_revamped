@@ -5,10 +5,30 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
+import usePlatformStore from '../../store/usePlatformStore'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import toast from 'react-hot-toast'
 
 const ALL_STATUSES = [...ORDER_FLOW, 'Cancelled']
+const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
+
+const getSellerProfitPct = (order) => {
+  if (!order) return '17%'
+  if (order.subtotal > 0 && order.tax > 0) {
+    const calcPct = Math.round((order.tax / order.subtotal) * 100)
+    if (calcPct === 17 || calcPct === 25 || calcPct === 35) return `${calcPct}%`
+  }
+  const sellerSubscriptions = usePlatformStore.getState()?.sellerSubscriptions || {}
+  const currentUserEmail = () => {
+    try {
+      return JSON.parse(localStorage.getItem('auth-storage-v3') || '{}')?.state?.user?.email || 'me'
+    } catch { return 'me' }
+  }
+  const email = currentUserEmail()
+  const sub = sellerSubscriptions[email] || sellerSubscriptions['me']
+  const pkgName = sub?.name || sub?.packageName
+  return PROFIT_RATES[pkgName] || '17%'
+}
 
 export default function SellerOrders() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -251,7 +271,7 @@ export default function SellerOrders() {
               </div>
               {(selectedOrder.tax > 0 || (selectedOrder.subtotal > 0 && selectedOrder.total > selectedOrder.subtotal)) && (
                 <div className="flex justify-between text-slate-400">
-                  <span>Seller profit{selectedOrder.subtotal > 0 && selectedOrder.tax ? ` (${Math.round((selectedOrder.tax / selectedOrder.subtotal) * 100)}%)` : ''}</span>
+                  <span>Seller profit ({getSellerProfitPct(selectedOrder)})</span>
                   <span className="font-bold text-green-500">+${(selectedOrder.tax || Math.max(0, selectedOrder.total - selectedOrder.subtotal)).toFixed(2)}</span>
                 </div>
               )}
