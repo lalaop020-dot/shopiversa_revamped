@@ -111,7 +111,8 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
           image: product.image,
           category: product.category,
           sellerEmail: selectedSeller?.email || product.sellerEmail,
-          sellerId: selectedSeller?.id || product.sellerId
+          sellerId: selectedSeller?.id || product.sellerId,
+          sellerName: selectedSeller?.shopName || selectedSeller?.name || product.shopName || product.sellerName || 'Seller'
         }]
       }
 
@@ -151,7 +152,9 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
           quantity: item.quantity,
           image: item.image,
           category: item.category,
-          sellerEmail: item.sellerEmail
+          sellerEmail: item.sellerEmail,
+          sellerId: item.sellerId,
+          sellerName: item.sellerName || selectedSeller?.shopName || selectedSeller?.name
         })),
         shippingInfo,
         paymentMethod

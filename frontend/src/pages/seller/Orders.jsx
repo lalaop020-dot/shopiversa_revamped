@@ -110,8 +110,8 @@ export default function SellerOrders() {
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
                     <td className="px-6 py-4 text-slate-300">
-                      <div>{order.customer}</div>
-                      {order.customerEmail && <div className="text-xs text-slate-500">{order.customerEmail}</div>}
+                      <div className="font-semibold">{order.customer}</div>
+                      {order.customerEmail && <div className="text-xs text-primary font-mono mt-0.5">{order.customerEmail}</div>}
                     </td>
                     <td className="px-6 py-4 text-slate-400">{order.items}</td>
                     <td className="px-6 py-4 font-bold">${order.total.toFixed(2)}</td>

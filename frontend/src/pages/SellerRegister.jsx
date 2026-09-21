@@ -425,7 +425,7 @@ export default function SellerRegister() {
   // Slide direction for step transition
   const [slideDir, setSlideDir] = useState('right')
 
-  const { registerSeller } = useAuthStore()
+  const { registerSeller, saveKycData } = useAuthStore()
   const navigate = useNavigate()
 
   const {
@@ -463,8 +463,10 @@ export default function SellerRegister() {
     setIsLoading(true)
     try {
       const { shopName, name, email, password } = getValues()
-      // KYC data is collected on the frontend for display/future use,
-      // but only the core fields are sent to the backend (no backend changes).
+      // Save KYC images and profile pic to the persisted auth store
+      // so they can be displayed in the seller profile after login.
+      saveKycData({ docFrontImage, docBackImage, profilePic })
+      // KYC images are stored locally; only core fields are sent to the backend.
       const { user } = await registerSeller(name, shopName, email, password)
       toast.success('Shop application submitted! We\'ll review your KYC documents.')
       navigate('/seller-pending', { state: { shopStatus: user.shopStatus, shopName: user.shopName } })

@@ -137,8 +137,10 @@ export default function AdminOrders() {
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-sm font-bold">{order.id}</td>
                     <td className="px-6 py-4 text-slate-300">
-                      <div>{order.shippingAddress?.name || 'Unknown'}</div>
-                      {order.customerEmail && <div className="text-xs text-slate-500">{order.customerEmail}</div>}
+                      <div className="font-semibold">{order.shippingAddress?.name || 'Unknown'}</div>
+                      {(order.customerEmail || order.shippingAddress?.email) && (
+                        <div className="text-xs text-primary font-mono mt-0.5">{order.customerEmail || order.shippingAddress?.email}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-slate-400 text-sm max-w-[200px] truncate" title={sellersOf(order)}>{sellersOf(order)}</td>
                     <td className="px-6 py-4 text-slate-400">{order.items.reduce((s, i) => s + i.quantity, 0)}</td>
@@ -259,7 +261,9 @@ export default function AdminOrders() {
                   <MapPin className="w-3.5 h-3.5" /> Shipping To
                 </div>
                 <div className="font-semibold">{selectedOrder.shippingAddress?.name}</div>
-                {selectedOrder.customerEmail && <div className="text-sm text-slate-400">{selectedOrder.customerEmail}</div>}
+                {(selectedOrder.customerEmail || selectedOrder.shippingAddress?.email) && (
+                  <div className="text-sm text-primary font-mono font-medium mt-0.5">{selectedOrder.customerEmail || selectedOrder.shippingAddress?.email}</div>
+                )}
                 <div className="text-sm text-slate-400 mt-1">
                   {selectedOrder.shippingAddress?.address}, {selectedOrder.shippingAddress?.city} {selectedOrder.shippingAddress?.zip}
                 </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Store, User, Lock, Wallet, ShieldCheck } from 'lucide-react'
+import { Store, User, Lock, Wallet, ShieldCheck, CreditCard, CheckCircle2, AlertCircle, ImageIcon } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
@@ -12,6 +12,7 @@ export default function ShopSettings() {
   const updateUser = useAuthStore((state) => state.updateUser)
   const changePassword = useAuthStore((state) => state.changePassword)
   const setTransactionPassword = useAuthStore((state) => state.setTransactionPassword)
+  const kycData = useAuthStore((state) => state.kycData)
 
   // Admin credentials state
   const updateAdminCredentials = useAuthStore((state) => state.updateAdminCredentials)
@@ -54,8 +55,9 @@ export default function ShopSettings() {
 
   const tabs = [
     { id: 'shop', label: 'Shop Profile', icon: Store },
+    { id: 'kyc', label: 'KYC Documents', icon: ShieldCheck },
     { id: 'wallet', label: 'Withdrawal Info', icon: Wallet },
-    { id: 'security', label: 'Security', icon: ShieldCheck },
+    { id: 'security', label: 'Security', icon: Lock },
   ]
 
   const handleSave = async () => {
@@ -203,7 +205,7 @@ export default function ShopSettings() {
     <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold mb-2">Shop Settings</h1>
-        <p className="text-slate-400">Manage your store information and security preferences.</p>
+        <p className="text-slate-400">Manage your store information, KYC documents, and security preferences.</p>
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
@@ -221,6 +223,9 @@ export default function ShopSettings() {
             >
               <tab.icon className="w-5 h-5" />
               <span className="font-medium text-sm">{tab.label}</span>
+              {tab.id === 'kyc' && kycData && (
+                <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" title="KYC submitted" />
+              )}
             </button>
           ))}
         </aside>
@@ -228,12 +233,23 @@ export default function ShopSettings() {
         {/* Content */}
         <div className="lg:col-span-3">
           <Card className="space-y-8">
+            {/* ── Shop Profile ── */}
             {activeTab === 'shop' && (
               <div className="space-y-6 animate-fade-in">
                 <div className="flex items-center gap-6 pb-6 border-b border-dark-border">
-                  <div className="w-24 h-24 bg-dark-bg border-2 border-dashed border-dark-border rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-primary transition-all">
-                    <User className="w-8 h-8 mb-1" />
-                    <span className="text-[10px]">Logo</span>
+                  <div className="relative shrink-0">
+                    {kycData?.profilePic ? (
+                      <img
+                        src={kycData.profilePic}
+                        alt="Profile"
+                        className="w-24 h-24 rounded-2xl object-cover border-2 border-primary/40"
+                      />
+                    ) : (
+                      <div className="w-24 h-24 bg-dark-bg border-2 border-dashed border-dark-border rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-primary transition-all">
+                        <User className="w-8 h-8 mb-1" />
+                        <span className="text-[10px]">Logo</span>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <h4 className="font-bold mb-1">Shop Logo</h4>
@@ -268,6 +284,162 @@ export default function ShopSettings() {
               </div>
             )}
 
+            {/* ── KYC Documents ── */}
+            {activeTab === 'kyc' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-primary/5 border border-primary/15">
+                  <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-sm text-primary">KYC Verification Documents</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      These are the identity documents you submitted during registration. They are stored locally on this device for your reference.
+                    </p>
+                  </div>
+                </div>
+
+                {kycData ? (
+                  <>
+                    {/* Submission info */}
+                    <div className="grid sm:grid-cols-3 gap-4 text-xs">
+                      <div className="bg-dark-bg border border-dark-border rounded-xl p-4 space-y-1">
+                        <p className="text-slate-500 uppercase tracking-wider font-semibold">Full Name</p>
+                        <p className="text-white font-medium">{user?.name || '—'}</p>
+                      </div>
+                      <div className="bg-dark-bg border border-dark-border rounded-xl p-4 space-y-1">
+                        <p className="text-slate-500 uppercase tracking-wider font-semibold">Email</p>
+                        <p className="text-white font-medium truncate">{user?.email || '—'}</p>
+                      </div>
+                      <div className="bg-dark-bg border border-dark-border rounded-xl p-4 space-y-1">
+                        <p className="text-slate-500 uppercase tracking-wider font-semibold">Submitted At</p>
+                        <p className="text-white font-medium">
+                          {kycData.submittedAt
+                            ? new Date(kycData.submittedAt).toLocaleDateString('en-US', {
+                                year: 'numeric', month: 'short', day: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                              })
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* KYC Status Badge */}
+                    <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                      <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-green-400">KYC Documents Submitted</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Your documents are under review by our admin team. You will be notified once verified.</p>
+                      </div>
+                    </div>
+
+                    {/* Profile Picture */}
+                    {kycData.profilePic && (
+                      <div className="space-y-2">
+                        <h5 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                          <User className="w-4 h-4 text-primary" />
+                          Profile Photo
+                        </h5>
+                        <div className="relative inline-block">
+                          <img
+                            src={kycData.profilePic}
+                            alt="Profile"
+                            className="w-28 h-28 rounded-2xl object-cover border-2 border-primary/40"
+                          />
+                          <div className="absolute -top-1.5 -right-1.5 bg-green-500 rounded-full p-0.5 border-2 border-dark-card">
+                            <CheckCircle2 className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Document images */}
+                    <div className="space-y-3">
+                      <h5 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-primary" />
+                        Official Document (ID Card / Driving License)
+                      </h5>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        {/* Front view */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Front View</p>
+                          {kycData.docFrontImage ? (
+                            <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-dark-bg group">
+                              <img
+                                src={kycData.docFrontImage}
+                                alt="Document Front"
+                                className="w-full object-cover max-h-52"
+                              />
+                              {/* Corner brackets */}
+                              <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-primary rounded-tl-sm" />
+                                <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-primary rounded-tr-sm" />
+                                <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-primary rounded-bl-sm" />
+                                <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-primary rounded-br-sm" />
+                              </div>
+                              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-green-500/90 backdrop-blur-sm text-white text-[11px] px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-md">
+                                <CheckCircle2 className="w-3 h-3" /> Front view uploaded
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-2 py-10 rounded-xl border-2 border-dashed border-dark-border bg-dark-bg text-slate-600">
+                              <ImageIcon className="w-8 h-8" />
+                              <span className="text-xs">No image</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Back view */}
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Back View</p>
+                          {kycData.docBackImage ? (
+                            <div className="relative rounded-xl overflow-hidden border-2 border-primary/30 bg-dark-bg group">
+                              <img
+                                src={kycData.docBackImage}
+                                alt="Document Back"
+                                className="w-full object-cover max-h-52"
+                              />
+                              {/* Corner brackets */}
+                              <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-primary rounded-tl-sm" />
+                                <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-primary rounded-tr-sm" />
+                                <div className="absolute bottom-2 left-2 w-5 h-5 border-b-2 border-l-2 border-primary rounded-bl-sm" />
+                                <div className="absolute bottom-2 right-2 w-5 h-5 border-b-2 border-r-2 border-primary rounded-br-sm" />
+                              </div>
+                              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-green-500/90 backdrop-blur-sm text-white text-[11px] px-2.5 py-0.5 rounded-full flex items-center gap-1 font-medium shadow-md">
+                                <CheckCircle2 className="w-3 h-3" /> Back view uploaded
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-center justify-center gap-2 py-10 rounded-xl border-2 border-dashed border-dark-border bg-dark-bg text-slate-600">
+                              <ImageIcon className="w-8 h-8" />
+                              <span className="text-xs">No image</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 italic">
+                      * KYC images are stored locally in your browser. They are not visible to other parties until reviewed by our admins.
+                    </p>
+                  </>
+                ) : (
+                  /* No KYC data found */
+                  <div className="flex flex-col items-center justify-center py-14 gap-4 text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-dark-bg border border-dark-border flex items-center justify-center">
+                      <AlertCircle className="w-8 h-8 text-slate-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-300">No KYC Data Found</h4>
+                      <p className="text-slate-500 text-sm mt-1 max-w-xs">
+                        KYC documents are only stored locally during seller registration. They were not found on this device.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Wallet / Withdrawal Info ── */}
             {activeTab === 'wallet' && (
               <div className="space-y-6 animate-fade-in">
                 <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl mb-6">
@@ -304,6 +476,7 @@ export default function ShopSettings() {
               </div>
             )}
 
+            {/* ── Security ── */}
             {activeTab === 'security' && (
               <div className="space-y-6 animate-fade-in">
                 <div className="grid md:grid-cols-2 gap-6">
@@ -354,7 +527,7 @@ export default function ShopSettings() {
               </div>
             )}
 
-            {activeTab !== 'security' && (
+            {activeTab !== 'security' && activeTab !== 'kyc' && (
               <div className="flex justify-end pt-6 border-t border-dark-border">
                  <Button onClick={handleSave} className="px-10" isLoading={isSaving}>Save Settings</Button>
               </div>
