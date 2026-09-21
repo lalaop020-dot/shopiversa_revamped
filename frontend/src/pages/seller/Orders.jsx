@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Filter, Search, Eye, ShoppingBag, X, MapPin, CreditCard, ArrowRight } from 'lucide-react'
+import { Filter, Search, Eye, ShoppingBag, X, MapPin, CreditCard } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
 import usePlatformStore from '../../store/usePlatformStore'
-import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
+import { ORDER_FLOW, statusMeta } from '../../utils/orderStatus'
 import toast from 'react-hot-toast'
 
 const ALL_STATUSES = [...ORDER_FLOW, 'Cancelled']
@@ -53,11 +53,9 @@ export default function SellerOrders() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [selectedOrder, setSelectedOrder] = useState(null)
-  const [isUpdating, setIsUpdating] = useState(false)
 
   const rawOrders = useOrderStore(state => state.orders)
   const fetchSellerOrders = useOrderStore(state => state.fetchSellerOrders)
-  const updateOrderStatus = useOrderStore(state => state.updateOrderStatus)
 
   useEffect(() => {
     fetchSellerOrders()
@@ -88,20 +86,6 @@ export default function SellerOrders() {
       order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())
     )
     .filter(order => statusFilter === 'All' || order.status === statusFilter)
-
-  const handleUpdateStatus = async (orderId, newStatus) => {
-    setIsUpdating(true)
-    try {
-      const updated = await updateOrderStatus(orderId, newStatus)
-      setSelectedOrder(prev => prev ? ({ ...prev, ...updated }) : updated)
-      toast.success(`Order #${orderId} marked as ${statusMeta(newStatus).label}`)
-      fetchSellerOrders()
-    } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to update order status')
-    } finally {
-      setIsUpdating(false)
-    }
-  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -215,34 +199,11 @@ export default function SellerOrders() {
 
             {(() => {
               const { label, color, icon: Icon } = statusMeta(selectedOrder.status)
-              const options = nextStatusOptions(selectedOrder.status)
               return (
-                <div className="flex flex-wrap items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-6">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 ${color}`}>
                     <Icon className="w-4 h-4" /> {label}
                   </span>
-                  {options.length > 0 && (
-                    <>
-                      <ArrowRight className="w-4 h-4 text-slate-500" />
-                      <div className="flex flex-wrap gap-2">
-                        {options.map(opt => (
-                          <Button
-                            key={opt}
-                            size="sm"
-                            variant={opt === 'Cancelled' ? 'outline' : 'primary'}
-                            className={opt === 'Cancelled' ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''}
-                            isLoading={isUpdating}
-                            onClick={() => handleUpdateStatus(selectedOrder.id, opt)}
-                          >
-                            Mark {statusMeta(opt).label}
-                          </Button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {options.length === 0 && (
-                    <span className="text-xs text-slate-500">This order is in a final state.</span>
-                  )}
                 </div>
               )
             })()}
