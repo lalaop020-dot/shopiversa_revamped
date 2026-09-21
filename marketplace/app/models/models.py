@@ -258,6 +258,7 @@ class PackageRequest(Base):
     status = Column(SAEnum(TxStatus), default=TxStatus.Pending)
     wallet_address = Column(String(500), nullable=True)
     tx_hash = Column(String(500), nullable=True)
+    proof_image = Column(Text, nullable=True)  # Cloudinary URL of the payment screenshot
     created_at = Column(DateTime, default=datetime.utcnow)
 
     seller = relationship("User", back_populates="package_requests")

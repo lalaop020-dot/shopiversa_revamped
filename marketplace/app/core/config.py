@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     # separated, a single origin, or a JSON array are all accepted below.
     ALLOWED_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:4173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://127.0.0.1:4173,*"
     UPLOAD_DIR: str = "uploads"
+    # Cloudinary (payment-proof screenshots). Empty = not configured; uploads
+    # then fail with a clear 503 rather than silently writing to local disk,
+    # which Railway wipes on every redeploy.
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+    CLOUDINARY_PROOF_FOLDER: str = "shopiversa/proofs"
 
     class Config:
         env_file = ".env"

@@ -15,6 +15,7 @@ from app.core.deps import current_user, seller_only, admin_only
 from app.core.security import verify_password
 from app.core.response import ok, err
 from app.core.config import settings
+from app.core.cloudinary_service import upload_proof, ProofError
 
 router = APIRouter(prefix="/wallet", tags=["Wallet"])
 
@@ -34,6 +35,16 @@ async def gen_unique_tx_id(db: AsyncSession) -> str:
     raise HTTPException(500, "Could not generate a unique transaction ID, please retry")
 
 
+def proof_url(stored: Optional[str]) -> Optional[str]:
+    """New records hold a Cloudinary https URL. Older ones hold a local file
+    path served (auth-gated) by /wallet/proof/<file>."""
+    if not stored:
+        return None
+    if stored.startswith("http"):
+        return stored
+    return f"/wallet/proof/{os.path.basename(stored)}"
+
+
 def tx_dict(t: Transaction) -> dict:
     return {
         "id": t.id,
@@ -45,7 +56,7 @@ def tx_dict(t: Transaction) -> dict:
         "sellerEmail": t.seller.email if t.seller else None,
         "txHash": t.tx_hash,
         "walletAddress": t.wallet_address,
-        "proofImage": f"/wallet/proof/{os.path.basename(t.proof_image)}" if t.proof_image else None,
+        "proofImage": proof_url(t.proof_image),
     }
 
 
@@ -103,17 +114,18 @@ async def submit_deposit(
     user: User = Depends(seller_only),
     db: AsyncSession = Depends(get_db),
 ):
-    proof_path = None
-    if proof:
-        fname = f"{uuid.uuid4()}.{proof.filename.split('.')[-1]}"
-        proof_path = f"{settings.UPLOAD_DIR}/proofs/{fname}"
-        with open(proof_path, "wb") as f:
-            shutil.copyfileobj(proof.file, f)
+    # The admin approves a deposit by checking it against the screenshot, so it's mandatory.
+    try:
+        proof_image = await upload_proof(proof)
+    except ProofError as e:
+        return err(e.message, e.status_code)
+    if not proof_image:
+        return err("A screenshot of your payment is required", 400)
 
     tx = Transaction(
         id=await gen_unique_tx_id(db), seller_id=user.id,
         type=TxType.Deposit, amount=Decimal(str(amount)),
-        method=method, tx_hash=txHash, proof_image=proof_path,
+        method=method, tx_hash=txHash, proof_image=proof_image,
     )
     db.add(tx)
 
@@ -125,18 +137,18 @@ async def submit_deposit(
     return ok({"transaction": tx_dict(tx)}, 201)
 
 
-class WithdrawIn(BaseModel):
-    amount: float = Field(gt=0)
-    walletAddress: str
-    transactionPassword: Optional[str] = None
-    method: str = "USDT TRC20 / BTC"
-
-
 @router.post("/withdraw")
-async def request_withdrawal(data: WithdrawIn, user: User = Depends(seller_only),
-                             db: AsyncSession = Depends(get_db)):
+async def request_withdrawal(
+    amount: float = Form(..., gt=0),
+    walletAddress: str = Form(...),
+    method: str = Form("USDT TRC20 / BTC"),
+    proof: Optional[UploadFile] = File(None),  # optional screenshot for the admin
+    user: User = Depends(seller_only),
+    db: AsyncSession = Depends(get_db),
+):
+    amt = Decimal(str(amount))
     bal = await get_or_create_balance(user.id, db, lock=True)
-    if Decimal(str(data.amount)) > bal.withdrawable:
+    if amt > bal.withdrawable:
         return err("Insufficient withdrawable balance", 400)
 
     # Check no pending withdrawal
@@ -150,15 +162,21 @@ async def request_withdrawal(data: WithdrawIn, user: User = Depends(seller_only)
     if pending.scalar_one_or_none():
         return err("You already have a pending withdrawal request", 400)
 
+    # Upload only after the request is known to be valid (no orphan screenshots).
+    try:
+        proof_image = await upload_proof(proof)
+    except ProofError as e:
+        return err(e.message, e.status_code)
+
     tx = Transaction(
         id=await gen_unique_tx_id(db), seller_id=user.id,
-        type=TxType.Withdrawal, amount=Decimal(str(data.amount)),
-        method=data.method, wallet_address=data.walletAddress,
+        type=TxType.Withdrawal, amount=amt,
+        method=method, wallet_address=walletAddress, proof_image=proof_image,
     )
     db.add(tx)
 
     # Reserve amount
-    bal.withdrawable -= Decimal(str(data.amount))
+    bal.withdrawable -= amt
     db.add(bal)
     await db.commit()
     await db.refresh(tx)

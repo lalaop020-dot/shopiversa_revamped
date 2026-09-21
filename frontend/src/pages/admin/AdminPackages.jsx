@@ -3,6 +3,7 @@ import { Check, X, ShieldAlert, Award, Power, PowerOff, ListFilter } from 'lucid
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import usePlatformStore from '../../store/usePlatformStore'
+import ProofViewer from '../../components/admin/ProofViewer'
 import toast from 'react-hot-toast'
 
 const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
@@ -84,6 +85,7 @@ export default function AdminPackages() {
                 <th className="px-6 py-4 font-medium">Price</th>
                 <th className="px-6 py-4 font-medium">Wallet Address</th>
                 <th className="px-6 py-4 font-medium">Tx Hash</th>
+                <th className="px-6 py-4 font-medium">Screenshot</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -96,6 +98,7 @@ export default function AdminPackages() {
                   <td className="px-6 py-4 font-bold">${req.price}</td>
                   <td className="px-6 py-4 font-mono text-xs max-w-[150px] truncate" title={req.walletAddress}>{req.walletAddress}</td>
                   <td className="px-6 py-4 font-mono text-xs max-w-[150px] truncate text-slate-400" title={req.txHash}>{req.txHash}</td>
+                  <td className="px-6 py-4"><ProofViewer url={req.proofImage} /></td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">
                     <Button 
                       variant="outline" 
@@ -117,7 +120,7 @@ export default function AdminPackages() {
               ))}
               {pending.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="text-center py-10 text-slate-500">
+                  <td colSpan="8" className="text-center py-10 text-slate-500">
                     No pending upgrades.
                   </td>
                 </tr>

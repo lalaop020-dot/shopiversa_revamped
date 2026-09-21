@@ -1,5 +1,5 @@
 import random, string
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
@@ -31,7 +31,7 @@ async def gen_unique_id(db: AsyncSession, model, prefix: str) -> str:
     raise HTTPException(500, f"Could not generate a unique {prefix} ID, please retry")
 
 
-# ── Packages ───────────────────────────────────────
+# â”€â”€ Packages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @router.get("/packages/current")
 async def current_package(user: User = Depends(seller_only), db: AsyncSession = Depends(get_db)):
@@ -42,32 +42,37 @@ async def current_package(user: User = Depends(seller_only), db: AsyncSession = 
     return ok({"name": sub.package_name.value, "status": sub.status.value})
 
 
-class PackageRequestIn(BaseModel):
-    packageName: str
-    price: Optional[float] = None
-    walletAddress: Optional[str] = None
-    txHash: Optional[str] = None
-
-    @field_validator("packageName")
-    @classmethod
-    def validate_package_name(cls, v):
-        try:
-            PackageName(v)
-        except ValueError:
-            raise ValueError(f"packageName must be one of: {', '.join(m.value for m in PackageName)}")
-        return v
-
-
 @router.post("/packages/request")
-async def request_package(data: PackageRequestIn, user: User = Depends(seller_only),
-                          db: AsyncSession = Depends(get_db)):
+async def request_package(
+    packageName: str = Form(...),
+    price: Optional[float] = Form(None),
+    walletAddress: Optional[str] = Form(None),
+    txHash: Optional[str] = Form(None),
+    proof: Optional[UploadFile] = File(None),
+    user: User = Depends(seller_only),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        PackageName(packageName)
+    except ValueError:
+        return err(f"packageName must be one of: {', '.join(m.value for m in PackageName)}", 422)
+
+    # The admin approves an upgrade by checking the payment screenshot, so it's mandatory.
+    try:
+        proof_image = await upload_proof(proof)
+    except ProofError as e:
+        return err(e.message, e.status_code)
+    if not proof_image:
+        return err("A screenshot of your payment is required", 400)
+
     req = PackageRequest(
         id=await gen_unique_id(db, PackageRequest, "PKG"),
         seller_id=user.id,
-        package_name=data.packageName,
-        price=Decimal(str(data.price)) if data.price else None,
-        wallet_address=data.walletAddress,
-        tx_hash=data.txHash,
+        package_name=packageName,
+        price=Decimal(str(price)) if price else None,
+        wallet_address=walletAddress,
+        tx_hash=txHash,
+        proof_image=proof_image,
     )
     db.add(req)
     await db.commit()
@@ -103,7 +108,7 @@ async def my_package_requests(user: User = Depends(seller_only), db: AsyncSessio
     ]})
 
 
-# ── Chat ───────────────────────────────────────────
+# â”€â”€ Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Three conversation shapes are allowed: customer<->seller, seller<->admin,
 # customer<->admin. Any two same-role users (seller<->seller etc.) are not.
 
@@ -156,7 +161,7 @@ async def get_conversations(user: User = Depends(current_user), db: AsyncSession
             })
 
     # Sellers/customers should always have a way to reach support, even
-    # before their first message — surface a placeholder if there's no real
+    # before their first message â€” surface a placeholder if there's no real
     # admin conversation yet.
     if user.role != UserRole.admin and not any(c["role"] == "admin" for c in convs):
         admin_result = await db.execute(select(User).where(User.role == UserRole.admin).limit(1))
@@ -250,7 +255,7 @@ async def send_message(data: SendMessageIn, user: User = Depends(current_user),
     return ok({"message": msg_dict(msg)}, 201)
 
 
-# ── Notifications ──────────────────────────────────
+# â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def notif_dict(n: Notification) -> dict:
     return {
@@ -316,7 +321,7 @@ async def delete_notification(notif_id: int, user: User = Depends(current_user),
     return ok({"success": True})
 
 
-# ── Support Tickets ────────────────────────────────
+# â”€â”€ Support Tickets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class TicketIn(BaseModel):
     subject: str
@@ -358,7 +363,7 @@ async def my_tickets(user: User = Depends(current_user), db: AsyncSession = Depe
     ]})
 
 
-# ── Public Contact Form ────────────────────────────
+# â”€â”€ Public Contact Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class ContactIn(BaseModel):
     name: str
@@ -369,7 +374,7 @@ class ContactIn(BaseModel):
 
 @router.post("/contact")
 async def submit_contact(data: ContactIn, db: AsyncSession = Depends(get_db)):
-    """No auth required — this is the public Contact Us form."""
+    """No auth required â€” this is the public Contact Us form."""
     if not data.name.strip() or not data.message.strip():
         return err("Name and message are required", 400)
 
@@ -392,3 +397,4 @@ async def submit_contact(data: ContactIn, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return ok({"success": True}, 201)
+

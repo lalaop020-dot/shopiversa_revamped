@@ -56,24 +56,30 @@ const usePlatformStore = create(
       },
 
       // ── Withdrawal ───────────────────────────────
-      addWithdrawalRequest: async (email, amount, walletAddress) => {
-        try {
-          const { data } = await api.post('/wallet/withdraw', {
-            amount: parseFloat(amount), walletAddress, method: 'Crypto (USDT / ETH / BTC)'
-          })
-          const tx = data.data.transaction
-          set((state) => {
-            const currentBal = state.balances[email] || { ...DEFAULT_BALANCE }
-            return {
-              transactions: [tx, ...state.transactions],
-              balances: {
-                ...state.balances,
-                [email]: { ...currentBal, withdrawable: currentBal.withdrawable - parseFloat(amount) }
-              }
+      // Throws on failure so the caller can show the server's reason
+      // (insufficient balance, upload problem, ...).
+      addWithdrawalRequest: async (email, amount, walletAddress, proofFile) => {
+        const form = new FormData()
+        form.append('amount', parseFloat(amount))
+        form.append('walletAddress', walletAddress)
+        form.append('method', 'Crypto (USDT / ETH / BTC)')
+        if (proofFile) form.append('proof', proofFile)
+
+        const { data } = await api.post('/wallet/withdraw', form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        const tx = data.data.transaction
+        set((state) => {
+          const currentBal = state.balances[email] || { ...DEFAULT_BALANCE }
+          return {
+            transactions: [tx, ...state.transactions],
+            balances: {
+              ...state.balances,
+              [email]: { ...currentBal, withdrawable: currentBal.withdrawable - parseFloat(amount) }
             }
-          })
-          return true
-        } catch (e) { return false }
+          }
+        })
+        return true
       },
 
       // ── Fetch Transactions ────────────────────────
@@ -153,9 +159,16 @@ const usePlatformStore = create(
         } catch (e) { return DEFAULT_SUBSCRIPTION }
       },
 
-      addPackageRequest: async (email, packageName, price, walletAddress, txHash) => {
-        const { data } = await api.post('/packages/request', {
-          packageName, price, walletAddress, txHash
+      addPackageRequest: async (email, packageName, price, walletAddress, txHash, proofFile) => {
+        const form = new FormData()
+        form.append('packageName', packageName)
+        if (price != null) form.append('price', price)
+        if (walletAddress) form.append('walletAddress', walletAddress)
+        if (txHash) form.append('txHash', txHash)
+        if (proofFile) form.append('proof', proofFile)
+
+        const { data } = await api.post('/packages/request', form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         })
         const req = data.data.request
         set((state) => ({ packageRequests: [req, ...state.packageRequests] }))

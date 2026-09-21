@@ -8,6 +8,7 @@ python-jose[cryptography]
 bcrypt<5
 passlib[bcrypt]
 python-multipart
+cloudinary
 pydantic
 pydantic-settings
 aiofiles

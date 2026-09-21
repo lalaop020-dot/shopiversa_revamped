@@ -15,6 +15,7 @@ from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, 
 from app.core.deps import admin_only
 from app.core.response import ok, err
 from app.core.pricing import reprice_seller
+from app.api.v1.endpoints.wallet import proof_url
 from app.api.v1.endpoints.orders import order_dict
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -38,6 +39,7 @@ def tx_dict_admin(t: Transaction) -> dict:
         "sellerEmail": t.seller.email if t.seller else None,
         "txHash": t.tx_hash,
         "walletAddress": t.wallet_address,
+        "proofImage": proof_url(t.proof_image),
     }
 
 
@@ -291,6 +293,7 @@ def pkg_req_dict(r: PackageRequest) -> dict:
         "status": r.status.value,
         "walletAddress": r.wallet_address,
         "txHash": r.tx_hash,
+        "proofImage": proof_url(r.proof_image),
         "date": r.created_at.strftime("%Y-%m-%d"),
     }
 

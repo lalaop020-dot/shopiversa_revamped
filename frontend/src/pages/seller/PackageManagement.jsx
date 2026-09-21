@@ -7,6 +7,7 @@ import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
+import { validateProofFile } from '../../utils/proofFile'
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
@@ -143,6 +144,8 @@ export default function PackageManagement() {
   const handleProofChange = (e) => {
     const file = e.target.files[0]
     if (!file) return
+    const problem = validateProofFile(file)
+    if (problem) { toast.error(problem); e.target.value = ''; return }
     setProofFile(file)
     const reader = new FileReader()
     reader.onload = (ev) => setProofPreview(ev.target.result)
@@ -152,6 +155,7 @@ export default function PackageManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!txid.trim()) return toast.error('Transaction ID (TXID) is required')
+    if (!proofFile) return toast.error('Please upload a screenshot of your payment')
     setIsSubmitting(true)
     try {
       await addPackageRequest(
@@ -159,7 +163,8 @@ export default function PackageManagement() {
         selectedPlan.name,
         selectedPlan.priceVal,
         activeAdminWallet,
-        txid.trim()
+        txid.trim(),
+        proofFile
       )
       setSubmitted(true)
       toast.success('Package upgrade request submitted! Awaiting admin approval.')
@@ -428,7 +433,7 @@ export default function PackageManagement() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
                       Payment Screenshot{' '}
-                      <span className="normal-case font-normal text-slate-500">(optional)</span>
+                      <span className="normal-case font-normal text-red-400">(required)</span>
                     </label>
                     <label
                       htmlFor="pkg-proof"
@@ -461,7 +466,7 @@ export default function PackageManagement() {
                     <input
                       id="pkg-proof"
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       className="hidden"
                       onChange={handleProofChange}
                     />

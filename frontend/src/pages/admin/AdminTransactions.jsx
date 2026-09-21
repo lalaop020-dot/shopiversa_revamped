@@ -3,6 +3,7 @@ import { Check, X, ShieldAlert, CheckCircle2, History, RefreshCw } from 'lucide-
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import usePlatformStore from '../../store/usePlatformStore'
+import ProofViewer from '../../components/admin/ProofViewer'
 import toast from 'react-hot-toast'
 
 export default function AdminTransactions() {
@@ -66,13 +67,14 @@ export default function AdminTransactions() {
                 <th className="px-6 py-4 font-medium">Type</th>
                 <th className="px-6 py-4 font-medium">Amount</th>
                 <th className="px-6 py-4 font-medium">Hash / Address</th>
+                <th className="px-6 py-4 font-medium">Screenshot</th>
                 <th className="px-6 py-4 font-medium">Date</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border">
               {pending.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400">No pending transactions</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-slate-400">No pending transactions</td></tr>
               ) : pending.map((tx) => (
                 <tr key={tx.id} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4 font-mono text-sm">{tx.id}</td>
@@ -84,6 +86,7 @@ export default function AdminTransactions() {
                   <td className="px-6 py-4 font-mono text-xs max-w-[200px] truncate" title={tx.txHash || tx.walletAddress}>
                     {tx.type === 'Deposit' ? `TXID: ${tx.txHash || '—'}` : `To: ${tx.walletAddress || '—'}`}
                   </td>
+                  <td className="px-6 py-4"><ProofViewer url={tx.proofImage} /></td>
                   <td className="px-6 py-4 text-slate-400 text-sm">{tx.date}</td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex gap-2 justify-end">
@@ -112,12 +115,13 @@ export default function AdminTransactions() {
                 <th className="px-6 py-4 font-medium">Type</th>
                 <th className="px-6 py-4 font-medium">Amount</th>
                 <th className="px-6 py-4 font-medium">Status</th>
+                <th className="px-6 py-4 font-medium">Screenshot</th>
                 <th className="px-6 py-4 font-medium">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-dark-border">
               {completed.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-400">No completed transactions</td></tr>
+                <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400">No completed transactions</td></tr>
               ) : completed.map((tx) => (
                 <tr key={tx.id} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4 font-mono text-sm">{tx.id}</td>
@@ -125,6 +129,7 @@ export default function AdminTransactions() {
                   <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${tx.type === 'Deposit' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{tx.type}</span></td>
                   <td className="px-6 py-4 font-bold">${Number(tx.amount).toFixed(2)}</td>
                   <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-[10px] font-bold ${tx.status === 'Approved' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{tx.status}</span></td>
+                  <td className="px-6 py-4"><ProofViewer url={tx.proofImage} /></td>
                   <td className="px-6 py-4 text-slate-400 text-sm">{tx.date}</td>
                 </tr>
               ))}

@@ -5,6 +5,8 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
+import { validateProofFile } from '../../utils/proofFile'
+import toast from 'react-hot-toast'
 
 const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
 
@@ -32,6 +34,7 @@ export default function Wallet() {
   const [proofFile, setProofFile] = useState(null)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawAddress, setWithdrawAddress] = useState('')
+  const [withdrawProof, setWithdrawProof] = useState(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -69,10 +72,19 @@ export default function Wallet() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Validate a chosen screenshot (type/size) before keeping it in state.
+  const pickProof = (e, setter) => {
+    const file = e.target.files[0] || null
+    const problem = validateProofFile(file)
+    if (problem) { toast.error(problem); e.target.value = ''; setter(null); return }
+    setter(file)
+  }
+
   const handleDepositSubmit = async (e) => {
     e.preventDefault()
     if (!depositAmount || parseFloat(depositAmount) <= 0) return toast.error('Invalid deposit amount')
     if (!depositTxid) return toast.error('Transaction ID is required')
+    if (!proofFile) return toast.error('Please upload a screenshot of your payment')
     setLoading(true)
     try {
       await addDepositRequest(email, depositAmount, depositTxid, proofFile)
@@ -92,14 +104,10 @@ export default function Wallet() {
     setLoading(true)
     try {
       const fullAddress = `[${withdrawCrypto}] ${withdrawAddress}`
-      const success = await addWithdrawalRequest(email, amt, fullAddress)
-      if (success) {
-        toast.success(`Withdrawal request (${withdrawCrypto}) submitted!`)
-        setWithdrawAmount(''); setWithdrawAddress('')
-        setIsWithdrawModalOpen(false)
-      } else {
-        toast.error('Insufficient balance or request failed')
-      }
+      await addWithdrawalRequest(email, amt, fullAddress, withdrawProof)
+      toast.success(`Withdrawal request (${withdrawCrypto}) submitted!`)
+      setWithdrawAmount(''); setWithdrawAddress(''); setWithdrawProof(null)
+      setIsWithdrawModalOpen(false)
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Withdrawal failed')
     } finally { setLoading(false) }
@@ -209,8 +217,9 @@ export default function Wallet() {
               <Input label="Amount (USD)" type="number" placeholder="100" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} />
               <Input label="Transaction ID (TXID)" placeholder="Blockchain TXID" value={depositTxid} onChange={e => setDepositTxid(e.target.value)} />
               <div>
-                <label className="block text-sm font-medium mb-1">Screenshot Proof (optional)</label>
-                <input type="file" accept="image/*" onChange={e => setProofFile(e.target.files[0])} className="text-sm text-slate-400" />
+                <label className="block text-sm font-medium mb-1">Payment Screenshot <span className="text-red-400 text-xs font-normal">(required)</span></label>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => pickProof(e, setProofFile)} className="text-sm text-slate-400" />
+                {proofFile && <p className="text-[10px] text-primary mt-1 truncate">{proofFile.name}</p>}
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1" type="button" onClick={() => setIsDepositModalOpen(false)}>Cancel</Button>
@@ -251,8 +260,13 @@ export default function Wallet() {
                 label={`Your ${withdrawCrypto} Wallet Address`} 
                 placeholder={withdrawCrypto === 'ETH (TRC20)' ? '0x...' : withdrawCrypto === 'BTC' ? '1A...' : 'T.....'} 
                 value={withdrawAddress} 
-                onChange={e => setWithdrawAddress(e.target.value)} 
+                onChange={e => setWithdrawAddress(e.target.value)}
               />
+              <div>
+                <label className="block text-sm font-medium mb-1">Screenshot <span className="text-slate-500 text-xs font-normal">(optional)</span></label>
+                <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => pickProof(e, setWithdrawProof)} className="text-sm text-slate-400" />
+                {withdrawProof && <p className="text-[10px] text-primary mt-1 truncate">{withdrawProof.name}</p>}
+              </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1" type="button" onClick={() => setIsWithdrawModalOpen(false)}>Cancel</Button>
                 <Button className="flex-1" type="submit" isLoading={loading}>Submit Request</Button>
