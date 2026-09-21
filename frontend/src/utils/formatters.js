@@ -62,3 +62,13 @@ export const timeAgo = (date) => {
   if (days < 7) return `${days}d ago`
   return formatDate(date)
 }
+
+// Neutral "no image" picture for products that have none (an inline SVG, so it
+// can't break the way a hosted placeholder or an unrelated stock photo can).
+const PLACEHOLDER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">' +
+  '<rect width="400" height="400" fill="#1b2035"/>' +
+  '<g fill="none" stroke="#475569" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">' +
+  '<rect x="110" y="130" width="180" height="140" rx="14"/><circle cx="160" cy="180" r="14"/>' +
+  '<path d="M120 260l55-50 40 35 30-25 45 40"/></g></svg>'
+export const PRODUCT_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(PLACEHOLDER_SVG)}`

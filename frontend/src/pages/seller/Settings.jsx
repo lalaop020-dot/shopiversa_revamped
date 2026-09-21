@@ -4,6 +4,7 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useAuthStore from '../../store/useAuthStore'
+import usePlatformStore from '../../store/usePlatformStore'
 import ImageLightbox from '../../components/common/ImageLightbox'
 import api from '../../api/axios'
 import toast from 'react-hot-toast'
@@ -29,29 +30,40 @@ export default function ShopSettings() {
   // Admin credentials state
   const updateAdminCredentials = useAuthStore((state) => state.updateAdminCredentials)
 
-  // Admin wallets state
-  const adminWallets = useAuthStore((state) => state.adminWallets) || { 
-    usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
-    eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
-    btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' 
-  }
-  const updateAdminWallets = useAuthStore((state) => state.updateAdminWallets)
+  // Global deposit wallets: stored on the server so sellers and customers see them.
+  const fetchDepositWallets = usePlatformStore((state) => state.fetchDepositWallets)
+  const saveDepositWallets = usePlatformStore((state) => state.saveDepositWallets)
 
   const [adminMailInput, setAdminMailInput] = useState(user?.email || '')
   const [adminNewPassInput, setAdminNewPassInput] = useState('')
   const [adminConfirmPassInput, setAdminConfirmPassInput] = useState('')
 
-  const [adminUsdtInput, setAdminUsdtInput] = useState(adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
-  const [adminEthInput, setAdminEthInput] = useState(adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-  const [adminBtcInput, setAdminBtcInput] = useState(adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+  const [adminUsdtInput, setAdminUsdtInput] = useState('')
+  const [adminEthInput, setAdminEthInput] = useState('')
+  const [adminBtcInput, setAdminBtcInput] = useState('')
+  const [walletsLoading, setWalletsLoading] = useState(role === 'admin')
+  const [isSavingWallets, setIsSavingWallets] = useState(false)
 
+  // Load the currently saved addresses from the server into the form.
+  useEffect(() => {
+    if (role !== 'admin') return
+    let cancelled = false
+    fetchDepositWallets().then((w) => {
+      if (cancelled) return
+      setAdminUsdtInput(w.usdt || '')
+      setAdminEthInput(w.eth || '')
+      setAdminBtcInput(w.btc || '')
+      setWalletsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [role, fetchDepositWallets])
   // Seller profile states
-  const [shopName, setShopName] = useState(user?.shopName || 'Shopiversa Official Store')
-  const [shopEmail, setShopEmail] = useState(user?.shopEmail || 'shop@example.com')
-  const [shopDesc, setShopDesc] = useState(user?.shopDesc || 'Welcome to the official Shopiversa store. We provide high-quality digital assets and electronics.')
-  const [usdtAddress, setUsdtAddress] = useState(user?.usdtAddress || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
-  const [ethAddress, setEthAddress] = useState(user?.ethAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-  const [btcAddress, setBtcAddress] = useState(user?.btcAddress || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
+  const [shopName, setShopName] = useState(user?.shopName || '')
+  const [shopEmail, setShopEmail] = useState(user?.shopEmail || '')
+  const [shopDesc, setShopDesc] = useState(user?.shopDesc || '')
+  const [usdtAddress, setUsdtAddress] = useState(user?.usdtAddress || '')
+  const [ethAddress, setEthAddress] = useState(user?.ethAddress || '')
+  const [btcAddress, setBtcAddress] = useState(user?.btcAddress || '')
   
   const [activeTab, setActiveTab] = useState('shop')
 
@@ -81,10 +93,9 @@ export default function ShopSettings() {
           return
         }
         await updateAdminCredentials(adminMailInput, adminNewPassInput)
-        await updateAdminWallets(adminUsdtInput, adminEthInput, adminBtcInput)
         setAdminNewPassInput('')
         setAdminConfirmPassInput('')
-        toast.success('Admin settings updated successfully!')
+        toast.success('Admin credentials updated successfully!')
       } else {
         await updateUser({ shopName, shopEmail, shopDesc, usdtAddress, ethAddress, btcAddress })
         toast.success('Settings saved successfully!')
@@ -93,6 +104,22 @@ export default function ShopSettings() {
       toast.error(error?.response?.data?.message || 'Failed to save settings')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleSaveWallets = async () => {
+    setIsSavingWallets(true)
+    try {
+      const saved = await saveDepositWallets({ usdt: adminUsdtInput, eth: adminEthInput, btc: adminBtcInput })
+      // Show exactly what the server stored (trimmed).
+      setAdminUsdtInput(saved.usdt || '')
+      setAdminEthInput(saved.eth || '')
+      setAdminBtcInput(saved.btc || '')
+      toast.success('Deposit wallets saved. Sellers and customers now see these addresses.')
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to save deposit wallets')
+    } finally {
+      setIsSavingWallets(false)
     }
   }
 
@@ -177,6 +204,9 @@ export default function ShopSettings() {
               />
             </div>
           </div>
+          <div className="flex justify-end pt-4 border-t border-dark-border">
+             <Button onClick={handleSave} className="px-10" isLoading={isSaving}>Save Credentials</Button>
+          </div>
         </Card>
 
         <Card className="space-y-6">
@@ -184,29 +214,36 @@ export default function ShopSettings() {
             <Wallet className="w-5 h-5 text-primary" /> Global Crypto Deposit Wallets Configuration
           </h3>
           <p className="text-sm text-slate-400">
-            These crypto wallet addresses will be displayed to sellers when they make a deposit into the platform.
+            These crypto wallet addresses are shown to sellers when they deposit or pay for a package, and to customers when they pay for an order.
           </p>
           
           <div className="grid md:grid-cols-3 gap-4">
             <Input 
               label="USDT Address (TRC20)" 
+              placeholder="Not set"
               value={adminUsdtInput} 
+              disabled={walletsLoading}
               onChange={(e) => setAdminUsdtInput(e.target.value)} 
             />
             <Input 
               label="ETH Address (TRC20)" 
+              placeholder="Not set"
               value={adminEthInput} 
+              disabled={walletsLoading}
               onChange={(e) => setAdminEthInput(e.target.value)} 
             />
             <Input 
               label="BTC Address" 
+              placeholder="Not set"
               value={adminBtcInput} 
+              disabled={walletsLoading}
               onChange={(e) => setAdminBtcInput(e.target.value)} 
             />
           </div>
+          <p className="text-xs text-slate-500">Leave a field empty to remove that address; buyers and sellers are then told it is not available.</p>
 
           <div className="flex justify-end pt-6 border-t border-dark-border">
-             <Button onClick={handleSave} className="px-10" isLoading={isSaving}>Save Settings</Button>
+             <Button onClick={handleSaveWallets} className="px-10" isLoading={isSavingWallets} disabled={walletsLoading}>Save Wallets</Button>
           </div>
         </Card>
       </div>
@@ -470,23 +507,22 @@ export default function ShopSettings() {
                 <div className="space-y-4">
                   <Input 
                     label="USDT Wallet Address (TRC20)" 
+                    placeholder="Your payout address"
                     value={usdtAddress} 
                     onChange={(e) => setUsdtAddress(e.target.value)} 
                   />
                   <Input 
                     label="ETH Wallet Address (TRC20)" 
+                    placeholder="Your payout address"
                     value={ethAddress} 
                     onChange={(e) => setEthAddress(e.target.value)} 
                   />
                   <Input 
                     label="BTC Wallet Address" 
+                    placeholder="Your payout address"
                     value={btcAddress} 
                     onChange={(e) => setBtcAddress(e.target.value)} 
                   />
-                  <div className="pt-4 flex items-center gap-3">
-                    <input type="checkbox" className="w-4 h-4 rounded border-dark-border bg-dark-bg accent-primary" defaultChecked />
-                    <span className="text-sm text-slate-400">Save as default withdrawal method</span>
-                  </div>
                 </div>
               </div>
             )}

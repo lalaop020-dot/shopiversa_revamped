@@ -16,6 +16,7 @@ from app.core.deps import current_user, seller_only
 from app.core.response import ok, err
 from app.core.cloudinary_service import upload_proof, ProofError
 from app.core.pricing import PACKAGE_PRICES, PACKAGE_RANK, DEFAULT_PACKAGE
+from app.core.platform_settings import get_wallets
 
 router = APIRouter(tags=["Packages & Chat & Notifications"])
 
@@ -122,6 +123,14 @@ async def my_package_requests(user: User = Depends(seller_only), db: AsyncSessio
         .order_by(PackageRequest.created_at.desc())
     )
     return ok({"requests": [my_request_dict(r, user.email) for r in result.scalars().all()]})
+
+
+# ── Deposit wallets (set by the admin; shown to sellers depositing and customers paying) ──
+
+@router.get("/settings/deposit-wallets")
+async def deposit_wallets(user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    """An empty string means the admin hasn't set that address yet."""
+    return ok({"wallets": await get_wallets(db)})
 
 # â”€â”€ Chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Three conversation shapes are allowed: customer<->seller, seller<->admin,

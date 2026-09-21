@@ -14,7 +14,9 @@ export default function CustomerProfile() {
 
   const orders = useOrderStore((state) => state.orders) || []
   const totalOrders = orders.length
-  const activeOrders = orders.filter((o) => o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled').length
+  // The API returns statuses capitalised ('Delivered', 'Cancelled'): compare case-insensitively.
+  const FINISHED = ['delivered', 'completed', 'cancelled']
+  const activeOrders = orders.filter((o) => !FINISHED.includes(String(o.status).toLowerCase())).length
 
   useEffect(() => {
     if (!isSeller) {
@@ -83,7 +85,7 @@ export default function CustomerProfile() {
           </div>
           <div>
             <h3 className="font-bold text-lg">{user?.name || 'User'}</h3>
-            <p className="text-xs text-slate-500">{user?.email || 'user@demo.com'}</p>
+            <p className="text-xs text-slate-500">{user?.email || ''}</p>
           </div>
           {isSeller ? (
             <div className="w-full border-t border-dark-border pt-4 flex justify-center text-center">

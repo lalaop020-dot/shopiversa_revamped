@@ -1,3 +1,4 @@
+import { PRODUCT_PLACEHOLDER } from '../utils/formatters'
 import { ShoppingCart, Plus, Eye, Store, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from './common/Button'
@@ -20,7 +21,7 @@ export function ProductCard({ product, onImport, onRemove, isImported, isLoading
       <Link to={`/product/${product.id}`} className="block">
         <div className="relative aspect-square overflow-hidden bg-slate-800">
           <img 
-            src={product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'} 
+            src={product.image || PRODUCT_PLACEHOLDER} 
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"
           />

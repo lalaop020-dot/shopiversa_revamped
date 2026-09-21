@@ -23,6 +23,8 @@ export default function DashboardOverview({ role }) {
   const transactions = usePlatformStore((state) => state.transactions) || []
   const packageRequests = usePlatformStore((state) => state.packageRequests) || []
   const adminDashboardStats = usePlatformStore((state) => state.adminDashboardStats)
+  const sellerStatsData = usePlatformStore((state) => state.sellerStats)
+  const orders = useOrderStore((state) => state.orders) || []
   const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
 
   const storeroomProducts = useProductStore((state) => state.storeroomProducts) || []
@@ -46,6 +48,7 @@ export default function DashboardOverview({ role }) {
         usePlatformStore.getState().fetchTransactions()
         usePlatformStore.getState().fetchPackageRequests()
         usePlatformStore.getState().fetchCurrentPackage()
+        usePlatformStore.getState().fetchSellerDashboardStats()
         useProductStore.getState().fetchSellerProducts(email)
         useProductStore.getState().fetchSellerImportedIds(email)
         useOrderStore.getState().fetchSellerOrders()
@@ -71,6 +74,8 @@ export default function DashboardOverview({ role }) {
   const totalActiveSellers = adminDashboardStats?.totalSellers ?? 0
   const totalPlatformOrders = adminDashboardStats?.totalOrders ?? 0
   const totalPlatformProducts = adminDashboardStats?.products ?? storeroomProducts.length
+  const totalPlatformStock = adminDashboardStats?.totalStock ?? 0
+  const totalCategories = adminDashboardStats?.categories ?? categories.length
 
   // Pending approvals — must include pending seller shop applications
   // (from /admin/dashboard/stats), not just tx/package requests, otherwise
@@ -80,67 +85,42 @@ export default function DashboardOverview({ role }) {
   const pendingPackages = packageRequests.filter(r => r.status === 'Pending').length
   const totalPendingApprovals = pendingSellerApprovals + pendingTransactions + pendingPackages
 
-  // Seller-specific stats (use meta total or imported IDs count for true real-time total)
+  // Seller-specific stats: whole-store totals from the server. (Summing the
+  // products loaded in the browser only covered the first page.)
   const myProducts = sellerProducts[email] || []
-  const myTotalProductCount = sellerProductsMeta?.total ?? (sellerImportedIds.length > 0 ? sellerImportedIds.length : myProducts.length)
-  const myTotalSales = myProducts.reduce((sum, p) => sum + (p.sales || 0), 0)
-  const myStockAlerts = myProducts.filter(p => p.stock <= 5).length
-  const myActiveProducts = myTotalProductCount
-
-  // Seller revenue (total earnings = balance + totalWithdrawn)
-  const myTotalRevenue = balances.balance + balances.totalWithdrawn
-
-  // Build chart data from real transaction history (last 12 months)
-  const chartData = useMemo(() => {
-    const months = Array(12).fill(0)
-    const now = new Date()
-
-    if (role === 'admin') {
-      // Admin: aggregate all approved deposits by month
-      transactions.forEach(tx => {
-        if (tx.type === 'Deposit' && tx.status === 'Approved') {
-          const txDate = new Date(tx.date)
-          const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth())
-          if (monthDiff >= 0 && monthDiff < 12) {
-            months[11 - monthDiff] += tx.amount
-          }
-        }
-      })
-    } else {
-      // Seller: use their transactions
-      transactions.filter(tx => tx.sellerEmail === email).forEach(tx => {
-        if (tx.status === 'Approved') {
-          const txDate = new Date(tx.date)
-          const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth())
-          if (monthDiff >= 0 && monthDiff < 12) {
-            months[11 - monthDiff] += tx.amount
-          }
-        }
-      })
-    }
-
-    // Normalize to percentage heights (0-100), with minimum bar height of 5 if any value exists
-    const maxVal = Math.max(...months, 1)
-    return months.map(v => v === 0 ? 0 : Math.max(5, Math.round((v / maxVal) * 100)))
-  }, [transactions, role, email])
-
-  // Chart raw values for tooltips
+  const myTotalProductCount = sellerStatsData?.totalProducts ?? sellerProductsMeta?.total ?? (sellerImportedIds.length > 0 ? sellerImportedIds.length : myProducts.length)
+  const myTotalSales = sellerStatsData?.totalSales ?? myProducts.reduce((sum, p) => sum + (p.sales || 0), 0)
+  const myStockAlerts = sellerStatsData?.lowStock ?? myProducts.filter(p => p.stock <= 5).length
+  const myActiveProducts = sellerStatsData?.activeProducts ?? myTotalProductCount
+  // Monthly revenue for the last 12 months.
+  //  - Admin:  approved deposits (platform revenue, same basis as the Total Revenue card)
+  //  - Seller: their actual sales (order totals, cancelled orders excluded).
+  //    This used to add up approved deposits AND withdrawals, which isn't revenue.
   const chartRawValues = useMemo(() => {
     const months = Array(12).fill(0)
     const now = new Date()
-    const relevantTxs = role === 'admin'
-      ? transactions.filter(tx => tx.type === 'Deposit' && tx.status === 'Approved')
-      : transactions.filter(tx => tx.sellerEmail === email && tx.status === 'Approved')
+    const entries = role === 'admin'
+      ? transactions
+          .filter(tx => tx.type === 'Deposit' && tx.status === 'Approved')
+          .map(tx => ({ date: tx.date, amount: tx.amount }))
+      : orders
+          .filter(o => o.status !== 'Cancelled')
+          .map(o => ({ date: o.createdAt, amount: o.total }))
 
-    relevantTxs.forEach(tx => {
-      const txDate = new Date(tx.date)
-      const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth())
-      if (monthDiff >= 0 && monthDiff < 12) {
-        months[11 - monthDiff] += tx.amount
-      }
+    entries.forEach(({ date, amount }) => {
+      const d = new Date(date)
+      if (Number.isNaN(d.getTime())) return
+      const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth())
+      if (monthDiff >= 0 && monthDiff < 12) months[11 - monthDiff] += Number(amount) || 0
     })
     return months
-  }, [transactions, role, email])
+  }, [transactions, orders, role])
+
+  // Bar heights as a percentage of the largest month (min 5% when there is any value)
+  const chartData = useMemo(() => {
+    const maxVal = Math.max(...chartRawValues, 1)
+    return chartRawValues.map(v => v === 0 ? 0 : Math.max(5, Math.round((v / maxVal) * 100)))
+  }, [chartRawValues])
 
   // Month labels
   const monthLabels = useMemo(() => {
@@ -227,11 +207,11 @@ export default function DashboardOverview({ role }) {
     {
       label: 'Total Products',
       value: totalPlatformProducts.toString(),
-      change: `${categories.length} categories`,
+      change: `${totalCategories} categories`,
       trend: totalPlatformProducts > 0 ? 'up' : 'neutral',
       icon: Package,
       color: 'text-primary',
-      subtitle: `${storeroomProducts.reduce((s, p) => s + p.stock, 0)} total stock`,
+      subtitle: `${totalPlatformStock.toLocaleString()} total stock`,
       route: '/admin/storeroom',
     },
     {
@@ -358,7 +338,7 @@ export default function DashboardOverview({ role }) {
            <div className="flex items-center justify-between mb-8">
              <div>
                <h3 className="font-bold text-lg">{role === 'admin' ? 'Platform Revenue' : 'My Revenue'}</h3>
-               <p className="text-xs text-slate-500 mt-1">Monthly breakdown from {role === 'admin' ? 'all approved deposits' : 'your transactions'}</p>
+               <p className="text-xs text-slate-500 mt-1">Monthly breakdown from {role === 'admin' ? 'all approved deposits' : 'your orders'}</p>
              </div>
              <div className="flex gap-2 items-center">
                 <div className="flex items-center gap-2 text-xs text-slate-500">

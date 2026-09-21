@@ -363,6 +363,24 @@ async def my_products(
     })
 
 
+@router.get("/seller/dashboard/stats")
+async def seller_dashboard_stats(user: User = Depends(seller_only), db: AsyncSession = Depends(get_db)):
+    """Whole-store totals. The dashboard used to add these up client-side over
+    just the first page of products, so they were wrong for larger stores."""
+    row = (await db.execute(
+        select(
+            func.count(SellerProduct.id),
+            func.count(SellerProduct.id).filter(SellerProduct.status == ProductStatus.Active),
+            func.coalesce(func.sum(SellerProduct.sales), 0),
+            func.count(SellerProduct.id).filter(SellerProduct.stock <= 5),
+        ).where(SellerProduct.seller_id == user.id)
+    )).one()
+    return ok({
+        "totalProducts": row[0], "activeProducts": row[1],
+        "totalSales": int(row[2]), "lowStock": row[3],
+    })
+
+
 @router.get("/seller/products/imported-ids")
 async def my_imported_ids(user: User = Depends(seller_only), db: AsyncSession = Depends(get_db)):
     """Lightweight full set of storeroom product ids this seller has already

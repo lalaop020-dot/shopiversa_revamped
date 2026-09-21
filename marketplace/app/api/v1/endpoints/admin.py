@@ -15,6 +15,7 @@ from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, 
 from app.core.deps import admin_only
 from app.core.response import ok, err
 from app.core.pricing import reprice_seller, HOUSE_SELLER_EMAIL
+from app.core.platform_settings import get_wallets, set_wallets, clean_wallet, WalletValidationError
 from app.api.v1.endpoints.auth import kyc_dict
 from app.api.v1.endpoints.wallet import proof_url
 from app.api.v1.endpoints.orders import order_dict
@@ -85,9 +86,23 @@ async def dashboard_stats(admin: User = Depends(admin_only), db: AsyncSession = 
         select(func.coalesce(func.sum(Transaction.amount), 0)).where(
             Transaction.type == TxType.Deposit, Transaction.status == TxStatus.Approved)
     )).scalar()
+    # Whole-catalogue figures (the dashboard used to add up only the first page it had loaded).
+    total_stock = (await db.execute(
+        select(func.coalesce(func.sum(Product.stock), 0)).where(Product.is_available == True)
+    )).scalar()
+    low_stock = (await db.execute(
+        select(func.count()).select_from(Product).where(Product.is_available == True, Product.stock <= 5)
+    )).scalar()
+    total_categories = (await db.execute(
+        select(func.count(func.distinct(Product.category))).where(
+            Product.is_available == True, Product.category.isnot(None))
+    )).scalar()
 
     return ok({
         "revenue": float(revenue),
+        "totalStock": int(total_stock),
+        "lowStock": low_stock,
+        "categories": total_categories,
         "products": total_products,
         "orders": orders_today,
         "totalOrders": total_orders,
@@ -96,6 +111,36 @@ async def dashboard_stats(admin: User = Depends(admin_only), db: AsyncSession = 
         "pendingDeposits": pending_deposits,
         "pendingWithdrawals": pending_withdrawals,
     })
+
+
+# ── Deposit wallet addresses ───────────────────────
+
+class DepositWalletsIn(BaseModel):
+    # Only the fields sent are changed; an empty string clears that address.
+    usdt: Optional[str] = None
+    eth: Optional[str] = None
+    btc: Optional[str] = None
+
+
+@router.get("/settings/deposit-wallets")
+async def admin_get_wallets(admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+    return ok({"wallets": await get_wallets(db)})
+
+
+@router.put("/settings/deposit-wallets")
+async def admin_set_wallets(data: DepositWalletsIn, admin: User = Depends(admin_only),
+                            db: AsyncSession = Depends(get_db)):
+    labels = {"usdt": "USDT", "eth": "ETH", "btc": "BTC"}
+    cleaned = {}
+    try:
+        for name, raw in data.model_dump().items():
+            if raw is not None:
+                cleaned[name] = clean_wallet(labels[name], raw)
+    except WalletValidationError as e:
+        return err(str(e), 400)
+    wallets = await set_wallets(db, cleaned)
+    await db.commit()
+    return ok({"wallets": wallets})
 
 
 # ── Orders (cross-seller visibility) ──────────────

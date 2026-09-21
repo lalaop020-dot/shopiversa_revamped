@@ -8,7 +8,9 @@ import { Input } from '../components/common/Input'
 import { Card } from '../components/common/Card'
 import useCartStore from '../store/useCartStore'
 import useOrderStore from '../store/useOrderStore'
-import { formatCurrency } from '../utils/formatters'
+import usePlatformStore from '../store/usePlatformStore'
+import DepositAddress, { addressFor } from '../components/common/DepositAddress'
+import { formatCurrency, PRODUCT_PLACEHOLDER } from '../utils/formatters'
 
 const EMPTY_SHIPPING = { firstName: '', lastName: '', email: '', address: '', city: '', zip: '' }
 const EMPTY_PAYMENT = { txHash: '', senderWallet: '' }
@@ -24,6 +26,12 @@ export default function Checkout() {
   const [placedOrderId, setPlacedOrderId] = useState(null)
   const [shipping, setShipping] = useState(EMPTY_SHIPPING)
   const [payment, setPayment] = useState(EMPTY_PAYMENT)
+
+  // Where to send payment: the admin-configured addresses, read from the server.
+  const depositWallets = usePlatformStore((state) => state.depositWallets)
+  const [network, setNetwork] = useState('USDT')
+  const payAddress = addressFor(depositWallets, network)
+  useEffect(() => { usePlatformStore.getState().fetchDepositWallets() }, [])
 
   // Don't let the checkout page render with an empty/stale cart
   useEffect(() => {
@@ -55,6 +63,10 @@ export default function Checkout() {
       }
     }
     if (step === 2) {
+      if (!payAddress) {
+        toast.error('No payment address is set for this network yet. Choose another network or contact support.')
+        return
+      }
       if (!payment.txHash || !payment.senderWallet) {
         toast.error('Please enter your transaction hash and sender wallet address')
         return
@@ -100,7 +112,7 @@ export default function Checkout() {
         </motion.div>
         <h1 className="text-4xl font-bold mb-4">Order Placed Successfully!</h1>
         <p className="text-slate-400 mb-10">
-          Your order #{placedOrderId} has been confirmed. You will receive an email shortly.
+          Your order #{placedOrderId} has been placed. You can follow its progress from your account.
         </p>
         <div className="flex gap-4 justify-center">
           <Button variant="outline" onClick={() => navigate('/profile')}>View Orders</Button>
@@ -181,13 +193,29 @@ export default function Checkout() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                  <div className="md:col-span-2 p-4 bg-dark-bg/50 border border-dark-border rounded-xl mb-4">
-                    <p className="text-sm text-slate-400 mb-2">Please send the exact total amount to our secure payment address:</p>
-                    <code className="block w-full p-3 bg-dark-card rounded text-primary text-center font-mono break-all">
-                      TL8r4M9L... (Example USDT TRC20 Address)
-                    </code>
-                  </div>
-                  <Input label="Transaction Hash (TxID)" placeholder="Enter the transaction hash of your payment" className="md:col-span-2" value={payment.txHash} onChange={updatePayment('txHash')} />
+                  <div className="md:col-span-2 p-4 bg-dark-bg/50 border border-dark-border rounded-xl mb-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {['USDT', 'ETH (TRC20)', 'BTC'].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setNetwork(n)}
+                          className={`py-2 px-2 text-xs font-bold rounded-lg border transition-all min-h-[40px] ${
+                            network === n
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-dark-card text-slate-400 border-dark-border hover:border-slate-600'
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      Send the exact total ({formatCurrency(total)}) in <strong className="text-white">{network}</strong> to this address:
+                    </p>
+                    <DepositAddress address={payAddress} network={network} />
+                    <p className="text-[11px] text-slate-500">Only send on the correct network — transfers on the wrong network cannot be recovered.</p>
+                  </div>                  <Input label="Transaction Hash (TxID)" placeholder="Enter the transaction hash of your payment" className="md:col-span-2" value={payment.txHash} onChange={updatePayment('txHash')} />
                   <Input label="Sender Wallet Address" placeholder="Your crypto wallet address" className="md:col-span-2" value={payment.senderWallet} onChange={updatePayment('senderWallet')} />
                 </div>
 
@@ -211,7 +239,7 @@ export default function Checkout() {
                   {items.map((item) => (
                     <div key={item.id} className="flex items-center gap-4">
                       <img
-                        src={item.image || 'https://via.placeholder.com/100'}
+                        src={item.image || PRODUCT_PLACEHOLDER}
                         alt={item.name}
                         className="w-16 h-16 rounded-lg object-cover bg-slate-800"
                       />
@@ -272,12 +300,6 @@ export default function Checkout() {
               </div>
             </div>
 
-            <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl flex items-start gap-3">
-              <Zap className="w-5 h-5 text-primary mt-1" />
-              <div className="text-xs text-slate-400">
-                You'll earn <span className="text-white font-bold">{Math.floor(total * 0.1)} Shopiversa Points</span> with this order!
-              </div>
-            </div>
           </Card>
         </div>
       </div>

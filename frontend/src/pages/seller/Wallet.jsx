@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, History, Plus, Copy, Check } from 'lucide-react'
+import { Wallet as WalletIcon, ArrowUpRight, ArrowDownLeft, History, Plus } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
 import { prepareProofFile } from '../../utils/proofFile'
+import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
 import toast from 'react-hot-toast'
 
 const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
@@ -13,11 +14,8 @@ const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
 export default function Wallet() {
   const { user } = useAuthStore()
   const email = user?.email || ''
-  const adminWallets = useAuthStore((state) => state.adminWallets) || { 
-    usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b', 
-    eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', 
-    btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa' 
-  }
+  // Platform deposit addresses, set by the admin and read from the server.
+  const depositWallets = usePlatformStore((state) => state.depositWallets)
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions)
   const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
@@ -28,7 +26,6 @@ export default function Wallet() {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
   const [depositCrypto, setDepositCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
   const [withdrawCrypto, setWithdrawCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
-  const [copied, setCopied] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
   const [depositTxid, setDepositTxid] = useState('')
   const [proofFile, setProofFile] = useState(null)
@@ -42,6 +39,7 @@ export default function Wallet() {
       fetchBalance()
       fetchTransactions()
       usePlatformStore.getState().fetchCurrentPackage()
+      usePlatformStore.getState().fetchDepositWallets()
     }
     refreshData()
     const interval = setInterval(refreshData, 10000)
@@ -52,11 +50,7 @@ export default function Wallet() {
     }
   }, [fetchBalance, fetchTransactions])
 
-  const activeAdminWallet = depositCrypto === 'ETH (TRC20)' 
-    ? (adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F')
-    : depositCrypto === 'BTC' 
-    ? (adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')
-    : (adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b')
+  const activeAdminWallet = addressFor(depositWallets, depositCrypto)
 
   const stats = [
     { label: 'Total Balance', value: `$${Number(balances.balance).toFixed(2)}`, icon: WalletIcon, color: 'text-primary' },
@@ -64,13 +58,6 @@ export default function Wallet() {
     { label: 'Pending Deposit', value: `$${Number(balances.pendingDeposit).toFixed(2)}`, icon: History, color: 'text-accent-gold' },
     { label: 'Total Withdrawn', value: `$${Number(balances.totalWithdrawn).toFixed(2)}`, icon: ArrowDownLeft, color: 'text-red-500' },
   ]
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(activeAdminWallet)
-    setCopied(true)
-    toast.success(`${depositCrypto} address copied!`)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   // Validate (and shrink, if it's a big phone photo) a chosen screenshot before keeping it.
   const pickProof = async (e, setter) => {
@@ -83,6 +70,7 @@ export default function Wallet() {
   const handleDepositSubmit = async (e) => {
     e.preventDefault()
     if (!depositAmount || parseFloat(depositAmount) <= 0) return toast.error('Invalid deposit amount')
+    if (!activeAdminWallet) return toast.error('No payment address is set for this network yet. Choose another network or contact support.')
     if (!depositTxid) return toast.error('Transaction ID is required')
     if (!proofFile) return toast.error('Please upload a screenshot of your payment')
     setLoading(true)
@@ -184,7 +172,7 @@ export default function Wallet() {
       {/* Deposit Modal */}
       {isDepositModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6 space-y-4">
+          <Card className="w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="font-bold text-lg">Submit Deposit</h3>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Crypto Network</label>
@@ -207,12 +195,7 @@ export default function Wallet() {
             </div>
 
             <p className="text-slate-400 text-xs mt-2">Send <strong>{depositCrypto}</strong> to the platform address below, then enter your TXID:</p>
-            <div className="flex items-center gap-2 bg-dark-bg rounded-lg p-3 font-mono text-xs break-all border border-dark-border">
-              <span className="flex-1 text-slate-200">{activeAdminWallet}</span>
-              <button onClick={handleCopy} className="p-1 hover:text-primary transition-colors">
-                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
+            <DepositAddress address={activeAdminWallet} network={depositCrypto} />
             <form onSubmit={handleDepositSubmit} className="space-y-3 pt-2">
               <Input label="Amount (USD)" type="number" placeholder="100" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} />
               <Input label="Transaction ID (TXID)" placeholder="Blockchain TXID" value={depositTxid} onChange={e => setDepositTxid(e.target.value)} />
@@ -223,7 +206,7 @@ export default function Wallet() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1" type="button" onClick={() => setIsDepositModalOpen(false)}>Cancel</Button>
-                <Button className="flex-1" type="submit" isLoading={loading}>Submit Deposit</Button>
+                <Button className="flex-1" type="submit" isLoading={loading} disabled={!activeAdminWallet}>Submit Deposit</Button>
               </div>
             </form>
           </Card>
@@ -233,7 +216,7 @@ export default function Wallet() {
       {/* Withdraw Modal */}
       {isWithdrawModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md p-6 space-y-4">
+          <Card className="w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="font-bold text-lg">Request Withdrawal</h3>
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Withdrawal Crypto</label>

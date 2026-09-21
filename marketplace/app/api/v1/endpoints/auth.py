@@ -2,7 +2,7 @@ import random, string
 from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -258,9 +258,18 @@ async def update_admin_creds(data: dict, user: User = Depends(current_user),
                              db: AsyncSession = Depends(get_db)):
     if user.role.value != "admin":
         return err("Admin only", 403)
-    if "email" in data:
-        user.email = data["email"]
-    if "newPassword" in data:
+    if data.get("email") and data["email"] != user.email:
+        try:
+            new_email = TypeAdapter(EmailStr).validate_python(data["email"])
+        except ValueError:
+            return err("Please enter a valid email address", 400)
+        taken = await db.execute(select(User).where(User.email == new_email))
+        if taken.scalar_one_or_none():
+            return err("Email already in use", 400)
+        user.email = new_email
+    if data.get("newPassword"):
+        if len(data["newPassword"]) < 8:
+            return err("New password must be at least 8 characters", 400)
         user.hashed_password = hash_password(data["newPassword"])
     db.add(user)
     await db.commit()

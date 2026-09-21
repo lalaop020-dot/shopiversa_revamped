@@ -1,3 +1,4 @@
+import { PRODUCT_PLACEHOLDER } from '../utils/formatters'
 import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ShoppingCart, Heart, ShieldCheck, Truck, Plus, Minus, AlertCircle, Store, MessageSquare, Mail } from 'lucide-react'
@@ -76,7 +77,7 @@ export default function ProductDetail() {
         <div className="space-y-4">
           <div className="aspect-square bg-dark-card border border-dark-border rounded-3xl overflow-hidden">
             <img 
-              src={product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'} 
+              src={product.image || PRODUCT_PLACEHOLDER} 
               alt={product.name} 
               className="w-full h-full object-cover" 
             />

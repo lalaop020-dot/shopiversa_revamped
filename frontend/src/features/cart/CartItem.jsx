@@ -1,11 +1,11 @@
 import { Trash2, Plus, Minus } from 'lucide-react'
-import { formatCurrency } from '../../utils/formatters'
+import { formatCurrency, PRODUCT_PLACEHOLDER } from '../../utils/formatters'
 
 export function CartItem({ item, onUpdateQuantity, onRemove }) {
   return (
     <div className="flex items-center gap-4 py-4 border-b border-dark-border last:border-0 group">
       <div className="w-20 h-20 bg-dark-bg border border-dark-border rounded-xl overflow-hidden shrink-0">
-        <img src={item.image || 'https://via.placeholder.com/100'} alt={item.name} className="w-full h-full object-cover" />
+        <img src={item.image || PRODUCT_PLACEHOLDER} alt={item.name} className="w-full h-full object-cover" />
       </div>
       
       <div className="flex-grow">

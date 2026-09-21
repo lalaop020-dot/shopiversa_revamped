@@ -5,7 +5,7 @@ import { Button } from '../../components/common/Button'
 import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Pagination } from '../../components/common/Pagination'
-import { formatCurrency } from '../../utils/formatters'
+import { formatCurrency, PRODUCT_PLACEHOLDER } from '../../utils/formatters'
 import useAuthStore from '../../store/useAuthStore'
 import { useProductStore } from '../../store/useProductStore'
 import toast from 'react-hot-toast'
@@ -114,16 +114,21 @@ export default function MyProducts() {
     setEditStock(product.stock)
   }
 
-  const handleUpdateSubmit = (e) => {
+  const handleUpdateSubmit = async (e) => {
     e.preventDefault()
     if (editStock === '' || parseInt(editStock) < 0) { toast.error('Invalid stock quantity'); return }
-    // Price is set by the server from your package's profit rate — never sent from here.
-    updateSellerProduct(sellerEmail, editingProduct.id, {
-      stock: parseInt(editStock),
-      status: parseInt(editStock) === 0 ? 'Out of Stock' : 'Active'
-    })
-    toast.success('Product configurations updated successfully!')
-    setEditingProduct(null)
+    try {
+      // Price is set by the server from your package's profit rate — never sent from here.
+      await updateSellerProduct(sellerEmail, editingProduct.id, {
+        stock: parseInt(editStock),
+        status: parseInt(editStock) === 0 ? 'Out of Stock' : 'Active'
+      })
+      toast.success('Product updated successfully!')
+      setEditingProduct(null)
+    } catch (error) {
+      // Only claim success once the server has actually saved it.
+      toast.error(error?.response?.data?.message || 'Could not update the product')
+    }
   }
 
   return (
@@ -133,7 +138,7 @@ export default function MyProducts() {
         <div>
           <h1 className="text-3xl font-bold mb-2">My Products</h1>
           <p className="text-slate-400">
-            View and adjust pricing/stock. Select multiple products to remove them in bulk.
+            View your listings and update stock. Prices follow your package's profit rate. Select multiple products to remove them in bulk.
           </p>
         </div>
         <Button onClick={() => navigate('/seller/storehouse')}>
@@ -209,7 +214,7 @@ export default function MyProducts() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500'}
+                          src={product.image || PRODUCT_PLACEHOLDER}
                           alt={product.name}
                           className="w-10 h-10 bg-slate-800 rounded-lg object-cover shrink-0"
                         />

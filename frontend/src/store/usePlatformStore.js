@@ -31,6 +31,27 @@ const usePlatformStore = create(
       sellerSubscriptions: {},
       packageRequests: [],
 
+      // ── Deposit wallets (set by the admin, one source of truth on the server) ──
+      // Empty string = not set yet. Never defaulted or cached locally: showing an
+      // old or made-up address to someone about to send money would be dangerous.
+      depositWallets: { usdt: '', eth: '', btc: '' },
+      depositWalletsLoaded: false,
+      fetchDepositWallets: async () => {
+        try {
+          const { data } = await api.get('/settings/deposit-wallets')
+          set({ depositWallets: { usdt: '', eth: '', btc: '', ...data.data.wallets }, depositWalletsLoaded: true })
+        } catch {
+          set({ depositWalletsLoaded: true })
+        }
+        return get().depositWallets
+      },
+      // Admin only. Throws on failure so the page can show the server's reason.
+      saveDepositWallets: async (wallets) => {
+        const { data } = await api.put('/admin/settings/deposit-wallets', wallets)
+        set({ depositWallets: { usdt: '', eth: '', btc: '', ...data.data.wallets }, depositWalletsLoaded: true })
+        return get().depositWallets
+      },
+
       // ── Balance ──────────────────────────────────
       fetchBalance: async () => {
         try {
@@ -104,6 +125,16 @@ const usePlatformStore = create(
           set({ transactions: txns })
           return txns
         } catch (e) { return [] }
+      },
+
+      // ── Seller: whole-store totals (sales, stock alerts, product counts) ─
+      sellerStats: null,
+      fetchSellerDashboardStats: async () => {
+        try {
+          const { data } = await api.get('/seller/dashboard/stats')
+          set({ sellerStats: data.data })
+          return data.data
+        } catch { return null }
       },
 
       // ── Admin: Dashboard Stats (real aggregate counts) ─
@@ -243,7 +274,12 @@ const usePlatformStore = create(
         } catch (e) { return [] }
       },
     }),
-    { name: 'platform-storage-v3' }
+    {
+      name: 'platform-storage-v3',
+      // Payment addresses are always read fresh from the server (see above).
+      partialize: (state) =>
+        Object.fromEntries(Object.entries(state).filter(([k]) => k !== 'depositWallets' && k !== 'depositWalletsLoaded')),
+    }
   )
 )
 

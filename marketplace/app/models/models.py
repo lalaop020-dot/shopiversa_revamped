@@ -119,6 +119,15 @@ class User(Base):
     support_tickets = relationship("SupportTicket", back_populates="seller")
 
 
+# ── Platform settings (admin-editable key/value, e.g. deposit wallet addresses) ──
+# New table, so create_all() adds it on deploy with no manual migration.
+class PlatformSetting(Base):
+    __tablename__ = "platform_settings"
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ── Seller KYC (registration documents) ────────────
 # Separate table (not columns on users) so create_all() adds it on deploy with
 # no manual migration. ID documents are Cloudinary *authenticated* assets: we

@@ -56,7 +56,7 @@ const useAuthStore = create(
         useChatStore.setState({ conversations: {}, conversationsList: [] })
         usePlatformStore.setState({
           balances: {}, transactions: [], sellerSubscriptions: {}, packageRequests: [],
-          adminSubscriptions: [], adminDashboardStats: null,
+          adminSubscriptions: [], adminDashboardStats: null, sellerStats: null,
         })
       },
 
@@ -85,19 +85,6 @@ const useAuthStore = create(
         console.warn('registerUser is a local mock — use registerSeller/registerCustomer instead')
       },
 
-      // Admin wallet addresses for crypto deposits (USDT, ETH TRC20, BTC)
-      adminWallets: {
-        usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
-        eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-        btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
-      },
-      updateAdminWallets: (usdt, eth, btc) => set((state) => ({
-        adminWallets: {
-          usdt: usdt ?? state.adminWallets?.usdt ?? 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
-          eth: eth ?? state.adminWallets?.eth ?? '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-          btc: btc ?? state.adminWallets?.btc ?? '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
-        }
-      })),
     }),
     { name: 'auth-storage-v3' }
   )

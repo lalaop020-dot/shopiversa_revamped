@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Check, ShieldCheck, AlertCircle, Copy, Upload, CheckCircle2 } from 'lucide-react'
+import { Check, ShieldCheck, AlertCircle, Upload } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import { Input } from '../../components/common/Input'
@@ -8,21 +8,20 @@ import usePlatformStore, { DEFAULT_SUBSCRIPTION } from '../../store/usePlatformS
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { prepareProofFile } from '../../utils/proofFile'
+import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
   const email = user?.email || 'seller@demo.com'
-  const adminWallets = useAuthStore((state) => state.adminWallets) || {
-    usdt: 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b',
-    eth: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-    btc: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
-  }
+  // Platform payment addresses, set by the admin and read from the server.
+  const depositWallets = usePlatformStore((state) => state.depositWallets)
 
   const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
   const addPackageRequest = usePlatformStore((state) => state.addPackageRequest)
   const allPackageRequests = usePlatformStore((state) => state.packageRequests)
   const fetchCurrentPackage = usePlatformStore((state) => state.fetchCurrentPackage)
   const fetchPackageRequests = usePlatformStore((state) => state.fetchPackageRequests)
+  const fetchDepositWallets = usePlatformStore((state) => state.fetchDepositWallets)
   const pendingRequests = useMemo(
     () => allPackageRequests.filter((r) => r.sellerEmail === email && r.status === 'Pending'),
     [allPackageRequests, email]
@@ -31,12 +30,12 @@ export default function PackageManagement() {
   // Refresh the plan + request status regularly, so a seller sees their new
   // package (and unlocked limits / profit rate) soon after the admin approves.
   useEffect(() => {
-    const refresh = () => { fetchCurrentPackage(); fetchPackageRequests() }
+    const refresh = () => { fetchCurrentPackage(); fetchPackageRequests(); fetchDepositWallets() }
     refresh()
     const interval = setInterval(refresh, 10000)
     window.addEventListener('focus', refresh)
     return () => { clearInterval(interval); window.removeEventListener('focus', refresh) }
-  }, [fetchCurrentPackage, fetchPackageRequests])
+  }, [fetchCurrentPackage, fetchPackageRequests, fetchDepositWallets])
 
   // Modal state
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
@@ -47,18 +46,12 @@ export default function PackageManagement() {
   const [txid, setTxid] = useState('')
   const [proofFile, setProofFile] = useState(null)
   const [proofPreview, setProofPreview] = useState(null)
-  const [copied, setCopied] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
   const cryptoOptions = ['USDT', 'ETH (TRC20)', 'BTC']
 
-  const activeAdminWallet =
-    selectedCrypto === 'ETH (TRC20)'
-      ? adminWallets.eth || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'
-      : selectedCrypto === 'BTC'
-      ? adminWallets.btc || '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
-      : adminWallets.usdt || 'TY6b8f9G2h7L1m5N3k8R0q4Wp1Xz9VcV7b'
+  const activeAdminWallet = addressFor(depositWallets, selectedCrypto)
 
   const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
   const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
@@ -129,20 +122,12 @@ export default function PackageManagement() {
     setTxid('')
     setProofFile(null)
     setProofPreview(null)
-    setCopied(false)
     setSubmitted(false)
     setCheckoutModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setCheckoutModalOpen(false)
-  }
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(activeAdminWallet)
-    setCopied(true)
-    toast.success(`${selectedCrypto} address copied!`)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleProofChange = async (e) => {
@@ -158,6 +143,7 @@ export default function PackageManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!activeAdminWallet) return toast.error('No payment address is set for this network yet. Choose another network or contact support.')
     if (!txid.trim()) return toast.error('Transaction ID (TXID) is required')
     if (!proofFile) return toast.error('Please upload a screenshot of your payment')
     setIsSubmitting(true)
@@ -393,23 +379,7 @@ export default function PackageManagement() {
                     <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
                       Send {selectedCrypto} To This Address
                     </label>
-                    <div className="flex items-center gap-2 bg-dark-bg rounded-xl p-3 font-mono text-xs break-all border border-dark-border group">
-                      <span className="flex-1 text-slate-200 leading-relaxed">
-                        {activeAdminWallet}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleCopy}
-                        className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0"
-                        title="Copy address"
-                      >
-                        {copied ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-slate-400 group-hover:text-primary transition-colors" />
-                        )}
-                      </button>
-                    </div>
+                    <DepositAddress address={activeAdminWallet} network={selectedCrypto} />
                     <p className="text-[10px] text-slate-500 mt-1.5">
                       ⚠️ Only send {selectedCrypto} on the correct network. Wrong network transfers
                       cannot be recovered.
