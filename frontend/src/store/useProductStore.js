@@ -84,6 +84,18 @@ const useProductStore = create(
         return data.data
       },
 
+      // Excel/CSV bulk import (admin). Server validates, dedupes and inserts in
+      // chunks; long timeout because thousands of rows can take a while.
+      bulkUploadFile: async (file) => {
+        const form = new FormData()
+        form.append('file', file)
+        const { data } = await api.post('/products/bulk-file', form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 300000,
+        })
+        return data.data
+      },
+
       // ── Seller Products ──────────────────────────
       fetchSellerProducts: async (email, params = {}) => {
         try {

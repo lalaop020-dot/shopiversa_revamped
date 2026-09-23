@@ -1,15 +1,17 @@
 import time
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, distinct
+from sqlalchemy import select, func, distinct, insert
 from decimal import Decimal
 
 from app.db.database import get_db
 from app.models.models import Product, SellerProduct, OrderPayout, User, ProductStatus, Subscription, PackageName, PackageStatus
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
+from app.core import product_import as pimport
 from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, reprice_product
 
 router = APIRouter(tags=["Products"])
@@ -335,6 +337,94 @@ async def bulk_upload(data: dict, admin: User = Depends(admin_only),
     await add_house_listings(db, new_products)
     await db.commit()
     return ok({"imported": imported, "failed": len(errors), "errors": errors})
+
+
+IMPORT_CHUNK = 500          # rows per transaction: small enough for any Postgres/Railway plan
+IMPORT_MAX_ERRORS = 100     # error rows echoed back (counts are always exact)
+
+
+@router.post("/products/bulk-file")
+async def bulk_upload_file(file: UploadFile = File(...), admin: User = Depends(admin_only),
+                           db: AsyncSession = Depends(get_db)):
+    """Import products from an .xlsx / .csv file.
+
+    Load-safety: the file is size- and row-capped, parsed off the event loop, then
+    written in chunks of IMPORT_CHUNK rows with one multi-row INSERT per chunk and
+    one commit per chunk (products + their house listings together). A DB failure
+    stops the import; chunks already committed stay, the rest are reported as not
+    imported. Rows already in the storeroom (same name + category) are skipped, so
+    uploading the same file twice never duplicates products.
+    """
+    content = await file.read(pimport.MAX_FILE_BYTES + 1)
+    try:
+        valid, errors, total = await run_in_threadpool(pimport.parse_products, file.filename or "", content)
+    except pimport.ImportFileError as e:
+        return err(str(e), 400)
+    del content
+
+    # Skip products that already exist (and repeats inside the file itself).
+    def key(name, category):
+        return (name.lower(), (category or "").lower())
+
+    existing = set()
+    names = list({r["name"].lower() for r in valid})
+    for i in range(0, len(names), 1000):
+        rows = await db.execute(
+            select(func.lower(Product.name), func.lower(Product.category))
+            .where(func.lower(Product.name).in_(names[i:i + 1000]))
+        )
+        existing.update((n, c or "") for n, c in rows.all())
+    todo, skipped = [], 0
+    for r in valid:
+        k = key(r["name"], r["category"])
+        if k in existing:
+            skipped += 1
+            continue
+        existing.add(k)
+        todo.append(r)
+
+    imported, aborted = 0, None
+    if todo:
+        base_id = await gen_product_id_batch(db, len(todo))
+        # Listing ids reuse the product ids, so that range must be free in seller_products too.
+        clash = await db.execute(
+            select(SellerProduct.id).where(SellerProduct.id >= base_id, SellerProduct.id < base_id + len(todo)))
+        if clash.first():
+            return err("Server was busy allocating IDs, please retry the upload.", 503)
+        try:
+            house = await get_or_create_house_seller(db)
+            await db.commit()
+            house_id = house.id
+            for i in range(0, len(todo), IMPORT_CHUNK):
+                chunk = todo[i:i + IMPORT_CHUNK]
+                await db.execute(insert(Product), [
+                    {"id": base_id + i + j, "name": r["name"], "price": r["price"], "category": r["category"],
+                     "stock": r["stock"], "image": r["image"], "description": r["description"],
+                     "is_available": r["is_available"]}
+                    for j, r in enumerate(chunk)
+                ])
+                listed = [(j, r) for j, r in enumerate(chunk) if r["is_available"]]
+                if listed:
+                    await db.execute(insert(SellerProduct), [
+                        {"id": base_id + i + j, "seller_id": house_id, "global_id": base_id + i + j,
+                         "price": r["price"], "stock": r["stock"], "status": ProductStatus.Active}
+                        for j, r in listed
+                    ])
+                await db.commit()
+                imported += len(chunk)
+        except Exception as e:  # DB trouble: keep what's committed, report the rest
+            await db.rollback()
+            aborted = f"Import stopped after {imported} product(s) because of a database error. Please retry the file."
+            import logging
+            logging.getLogger(__name__).exception("bulk-file import failed: %s", e)
+
+    return ok({
+        "totalRows": total, "imported": imported, "skipped": skipped,
+        "failed": len(errors), "errors": errors[:IMPORT_MAX_ERRORS],
+        "errorsTruncated": len(errors) > IMPORT_MAX_ERRORS,
+        "notImported": (len(todo) - imported) if aborted else 0,
+        "aborted": aborted,
+    })
 
 
 # ── SELLER PRODUCTS ────────────────────────────────

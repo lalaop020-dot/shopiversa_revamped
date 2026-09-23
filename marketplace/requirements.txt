@@ -13,3 +13,4 @@ pydantic
 pydantic-settings
 aiofiles
 email-validator
+openpyxl
