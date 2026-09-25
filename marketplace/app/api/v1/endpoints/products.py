@@ -629,3 +629,32 @@ async def marketplace_products(
         "products": [seller_product_dict(sp) for sp in items],
         "total": total, "page": page, "limit": limit, "pages": pages,
     })
+
+
+@router.get("/marketplace/products/{product_id}")
+async def marketplace_product(product_id: int, db: AsyncSession = Depends(get_db)):
+    """One storefront product, for the detail page (which can't rely on the
+    paginated list). `product_id` may be a listing id or a catalog product id;
+    either way the same best offer as the list is returned: in-stock first,
+    real sellers before the house, then cheapest."""
+    from sqlalchemy.orm import selectinload
+    global_id = (await db.execute(
+        select(SellerProduct.global_id).where(SellerProduct.id == product_id)
+    )).scalar_one_or_none()
+    if global_id is None:
+        global_id = product_id
+
+    sp = (await db.execute(
+        select(SellerProduct)
+        .options(selectinload(SellerProduct.global_product), selectinload(SellerProduct.seller))
+        .join(Product, SellerProduct.global_id == Product.id)
+        .join(User, SellerProduct.seller_id == User.id)
+        .where(SellerProduct.global_id == global_id,
+               SellerProduct.status == ProductStatus.Active, Product.is_available == True)
+        .order_by((SellerProduct.stock <= 0), (User.email == HOUSE_SELLER_EMAIL),
+                  SellerProduct.price.asc(), SellerProduct.id)
+        .limit(1)
+    )).scalars().first()
+    if not sp:
+        return err("Product not found", 404)
+    return ok({"product": seller_product_dict(sp)})

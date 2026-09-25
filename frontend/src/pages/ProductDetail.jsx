@@ -18,17 +18,27 @@ export default function ProductDetail() {
   const [activeTab, setActiveTab] = useState('description')
   const [isChatOpen, setIsChatOpen] = useState(false)
 
-  const marketplaceProducts = useProductStore((state) => state.marketplaceProducts)
-  const fetchMarketplaceProducts = useProductStore((state) => state.fetchMarketplaceProducts)
-  const product = marketplaceProducts.find(p => String(p.id) === id)
+  // The product comes from its own request: the stored marketplace list is only
+  // one page of the catalogue, so it usually doesn't contain the product.
+  const fetchMarketplaceProduct = useProductStore((state) => state.fetchMarketplaceProduct)
+  const cached = useProductStore((state) => state.marketplaceProducts.find(p => String(p.id) === id))
+  // Result is tagged with the id it was fetched for, so navigating between
+  // products never shows (or waits on) the previous one.
+  const [result, setResult] = useState({ id: null, product: null })
+  const loading = result.id !== id
+  const product = (result.id === id && result.product) || cached
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const role = useAuthStore((state) => state.role)
 
   useEffect(() => {
-    fetchMarketplaceProducts()
+    let cancelled = false
+    fetchMarketplaceProduct(id).then((p) => {
+      if (!cancelled) setResult({ id, product: p })
+    })
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [id])
 
   const addItem = useCartStore((state) => state.addItem)
 
@@ -55,6 +65,10 @@ export default function ProductDetail() {
     if (!product) return
     addItem(product, quantity)
     navigate('/checkout')
+  }
+
+  if (!product && loading) {
+    return <div className="py-20 text-center text-slate-400">Loading product…</div>
   }
 
   if (!product) {

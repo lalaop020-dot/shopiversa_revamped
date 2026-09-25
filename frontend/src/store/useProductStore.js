@@ -26,6 +26,15 @@ const useProductStore = create(
         } catch { return [] }
       },
 
+      // Single product for the detail page. Deliberately does not touch the
+      // stored list/pagination. Returns null when not found.
+      fetchMarketplaceProduct: async (id) => {
+        try {
+          const { data } = await api.get(`/marketplace/products/${encodeURIComponent(id)}`)
+          return data.data.product
+        } catch { return null }
+      },
+
       // Categories that actually have active, purchasable listings — with real counts.
       fetchPublicCategories: async () => {
         try {
