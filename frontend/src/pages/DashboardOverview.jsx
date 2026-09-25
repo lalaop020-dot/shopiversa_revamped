@@ -7,12 +7,8 @@ import useAuthStore from '../store/useAuthStore'
 import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../store/usePlatformStore'
 import { useProductStore } from '../store/useProductStore'
 import useOrderStore from '../store/useOrderStore'
+import { PROFIT_RATES, normalizePackageName } from '../utils/packages'
 
-export const PROFIT_RATES = {
-  Silver: '17%',
-  Gold: '25%',
-  Platinum: '35%'
-}
 
 export default function DashboardOverview({ role }) {
   const navigate = useNavigate()
@@ -33,7 +29,7 @@ export default function DashboardOverview({ role }) {
   const sellerImportedIds = useProductStore((state) => state.sellerImportedIds[email]) || []
   const categories = useProductStore((state) => state.categories) || []
 
-  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
+  const activeProfitRate = PROFIT_RATES[normalizePackageName(sub.name)] || '17%'
 
   useEffect(() => {
     const refreshData = () => {

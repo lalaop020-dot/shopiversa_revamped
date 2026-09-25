@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.db.database import create_tables
+from app.core.pricing import reprice_all_sellers
 from app.api.v1.endpoints import auth, products, orders, wallet, admin, misc
 
 
@@ -13,6 +14,7 @@ from app.api.v1.endpoints import auth, products, orders, wallet, admin, misc
 async def lifespan(app: FastAPI):
     await create_tables()
     await products.ensure_house_listings()
+    await reprice_all_sellers()
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(f"{settings.UPLOAD_DIR}/proofs", exist_ok=True)
     print(f"✅ {settings.APP_NAME} backend started on port 5000")

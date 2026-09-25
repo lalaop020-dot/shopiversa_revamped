@@ -24,7 +24,9 @@ class ShopStatus(str, enum.Enum):
 class PackageName(str, enum.Enum):
     Silver = "Silver"
     Gold = "Gold"
-    Platinum = "Platinum"
+    # Formerly "Platinum". Existing databases are migrated in place at startup
+    # (see SCHEMA_PATCHES in db/database.py: ALTER TYPE ... RENAME VALUE).
+    Diamond = "Diamond"
 
 
 class PackageStatus(str, enum.Enum):

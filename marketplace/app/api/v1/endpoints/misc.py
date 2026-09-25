@@ -64,7 +64,8 @@ async def request_package(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        target = PackageName(packageName)
+        # "Platinum" was renamed "Diamond"; tolerate a not-yet-refreshed browser.
+        target = PackageName("Diamond" if packageName.strip() == "Platinum" else packageName.strip())
     except ValueError:
         return err(f"packageName must be one of: {', '.join(m.value for m in PackageName)}", 422)
 

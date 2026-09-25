@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
 import { prepareProofFile } from '../../utils/proofFile'
 import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
+import { PROFIT_RATES } from '../../utils/packages'
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
@@ -53,7 +54,6 @@ export default function PackageManagement() {
 
   const activeAdminWallet = addressFor(depositWallets, selectedCrypto)
 
-  const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
   const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
 
   const packages = [
@@ -76,10 +76,10 @@ export default function PackageManagement() {
       price: '$499',
       priceVal: 499,
       period: '/mo',
-      profitPercentage: '25%',
+      profitPercentage: '20%',
       features: [
         'Up to 1000 active products',
-        '25% Seller Profit Percentage',
+        '20% Seller Profit Percentage',
         'Advanced analytics & heatmaps',
         'Priority customer support (24/7)'
       ],
@@ -87,20 +87,20 @@ export default function PackageManagement() {
       popular: true
     },
     {
-      name: 'Platinum',
+      name: 'Diamond',
       price: '$999',
       priceVal: 999,
       period: '/mo',
-      profitPercentage: '35%',
+      profitPercentage: '25%',
       features: [
         'Up to 2000 active products',
-        '35% Seller Profit Percentage',
+        '25% Seller Profit Percentage',
         'Real-time deep analytics API',
         'Dedicated account manager',
         'Custom storefront design themes',
         'Beta access to new features'
       ],
-      current: sub.name === 'Platinum'
+      current: sub.name === 'Diamond'
     }
   ]
 

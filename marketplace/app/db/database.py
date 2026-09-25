@@ -32,6 +32,17 @@ async def get_db():
 SCHEMA_PATCHES = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS eth_address VARCHAR(300)",
     "ALTER TABLE package_requests ADD COLUMN IF NOT EXISTS proof_image TEXT",
+    # Package "Platinum" was renamed "Diamond". RENAME VALUE keeps every existing
+    # subscription row and is a no-op once done (guarded by the pg_enum check).
+    """DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid
+                   WHERE t.typname = 'packagename' AND e.enumlabel = 'Platinum')
+           AND NOT EXISTS (SELECT 1 FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid
+                   WHERE t.typname = 'packagename' AND e.enumlabel = 'Diamond') THEN
+            ALTER TYPE packagename RENAME VALUE 'Platinum' TO 'Diamond';
+        END IF;
+    END $$""",
+    "UPDATE package_requests SET package_name = 'Diamond' WHERE package_name = 'Platinum'",
 ]
 
 

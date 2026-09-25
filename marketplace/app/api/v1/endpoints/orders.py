@@ -13,7 +13,7 @@ from app.models.models import Order, OrderItem, OrderPayout, SellerBalance, Prod
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core.security import verify_password, hash_password
-from app.core.pricing import HOUSE_SELLER_EMAIL
+from app.core.pricing import HOUSE_SELLER_EMAIL, seller_rates
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -31,7 +31,7 @@ async def gen_unique_order_id(db: AsyncSession) -> str:
     raise HTTPException(500, "Could not generate a unique order ID, please retry")
 
 
-def order_dict(o: Order, seller_id: int | None = None) -> dict:
+def order_dict(o: Order, seller_id: int | None = None, rates: dict | None = None) -> dict:
     """A cart can span multiple sellers in one order. When `seller_id` is
     given (seller-facing views), items/subtotal/total are scoped to just
     that seller's line items — otherwise a seller would see other sellers'
@@ -47,6 +47,8 @@ def order_dict(o: Order, seller_id: int | None = None) -> dict:
             "image": oi.image,
             "category": oi.category,
             "sellerId": oi.seller_id,
+            # Seller's package profit rate (0.20 = 20%) when the caller supplied it.
+            "profitRate": (rates or {}).get(oi.seller_id),
         }
         for oi in items_src
     ]
@@ -242,7 +244,8 @@ async def my_orders(user: User = Depends(current_user), db: AsyncSession = Depen
     q = q.order_by(Order.created_at.desc())
     orders = (await db.execute(q)).scalars().all()
     seller_id = user.id if user.role.value == "seller" else None
-    return ok({"orders": [order_dict(o, seller_id=seller_id) for o in orders]})
+    rates = await seller_rates(db, {i.seller_id for o in orders for i in o.items}) if user.role.value != "customer" else None
+    return ok({"orders": [order_dict(o, seller_id=seller_id, rates=rates) for o in orders]})
 
 
 @router.get("/seller")
@@ -254,7 +257,8 @@ async def seller_orders(user: User = Depends(seller_only), db: AsyncSession = De
     orders = (await db.execute(q)).scalars().all()
     # seller_only also lets an admin through; only scope items for an actual seller.
     seller_id = user.id if user.role.value == "seller" else None
-    return ok({"orders": [order_dict(o, seller_id=seller_id) for o in orders]})
+    rates = await seller_rates(db, {i.seller_id for o in orders for i in o.items})
+    return ok({"orders": [order_dict(o, seller_id=seller_id, rates=rates) for o in orders]})
 
 
 @router.get("/customer")
@@ -279,7 +283,8 @@ async def get_order(order_id: str, user: User = Depends(current_user),
     if user.role == UserRole.seller and not any(i.seller_id == user.id for i in o.items):
         return err("Order not found", 404)
     seller_id = user.id if user.role == UserRole.seller else None
-    return ok({"order": order_dict(o, seller_id=seller_id)})
+    rates = await seller_rates(db, {i.seller_id for i in o.items}) if user.role != UserRole.customer else None
+    return ok({"order": order_dict(o, seller_id=seller_id, rates=rates)})
 
 
 async def credit_sellers(o: Order, db: AsyncSession) -> None:
@@ -349,5 +354,5 @@ async def update_status(order_id: str, data: StatusUpdate,
         await credit_sellers(o, db)
     await db.commit()
     await db.refresh(o)
-    seller_id = user.id if user.role == UserRole.seller else None
-    return ok({"order": order_dict(o, seller_id=seller_id)})
+    rates = await seller_rates(db, {i.seller_id for i in o.items})
+    return ok({"order": order_dict(o, rates=rates)})

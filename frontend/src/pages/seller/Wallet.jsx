@@ -8,8 +8,8 @@ import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../../s
 import { prepareProofFile } from '../../utils/proofFile'
 import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
 import toast from 'react-hot-toast'
+import { PROFIT_RATES, normalizePackageName } from '../../utils/packages'
 
-const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
 
 export default function Wallet() {
   const { user } = useAuthStore()
@@ -19,7 +19,7 @@ export default function Wallet() {
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions)
   const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
-  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
+  const activeProfitRate = PROFIT_RATES[normalizePackageName(sub.name)] || '17%'
   const { fetchBalance, addDepositRequest, addWithdrawalRequest, fetchTransactions } = usePlatformStore()
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)

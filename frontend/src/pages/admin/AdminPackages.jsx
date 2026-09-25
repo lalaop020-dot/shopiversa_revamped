@@ -5,8 +5,8 @@ import { Button } from '../../components/common/Button'
 import usePlatformStore from '../../store/usePlatformStore'
 import ProofViewer from '../../components/admin/ProofViewer'
 import toast from 'react-hot-toast'
+import { PROFIT_RATES, normalizePackageName } from '../../utils/packages'
 
-const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
 
 export default function AdminPackages() {
   const packageRequests = usePlatformStore((state) => state.packageRequests)
@@ -150,7 +150,7 @@ export default function AdminPackages() {
                 <tr key={sub.sellerId} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4 font-semibold text-sm">{sub.sellerEmail}</td>
                   <td className="px-6 py-4 font-bold text-primary">
-                    {sub.packageName} <span className="text-xs font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full ml-1">({PROFIT_RATES[sub.packageName] || '17%'} Profit)</span>
+                    {normalizePackageName(sub.packageName)} <span className="text-xs font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full ml-1">({PROFIT_RATES[normalizePackageName(sub.packageName)] || '17%'} Profit)</span>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`flex items-center gap-1.5 ${

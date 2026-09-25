@@ -12,11 +12,11 @@ from app.models.models import Product, SellerProduct, OrderPayout, User, Product
 from app.core.deps import current_user, admin_only, seller_only
 from app.core.response import ok, err
 from app.core import product_import as pimport
-from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, reprice_product
+from app.core.pricing import HOUSE_SELLER_EMAIL, seller_price, package_of, profit_rate, reprice_product
 
 router = APIRouter(tags=["Products"])
 
-PACKAGE_LIMITS = {PackageName.Silver: 300, PackageName.Gold: 1000, PackageName.Platinum: 2000}
+PACKAGE_LIMITS = {PackageName.Silver: 300, PackageName.Gold: 1000, PackageName.Diamond: 2000}
 
 
 async def gen_unique_product_id(db: AsyncSession) -> int:
@@ -78,7 +78,7 @@ async def get_or_create_house_seller(db: AsyncSession) -> User:
     db.add(house)
     await db.flush()
     db.add(SellerBalance(seller_id=house.id))
-    db.add(Subscription(seller_id=house.id, package_name=PackageName.Platinum))
+    db.add(Subscription(seller_id=house.id, package_name=PackageName.Diamond))
     return house
 
 
@@ -581,10 +581,17 @@ async def admin_seller_products(seller_id: int, admin: User = Depends(admin_only
                Product.is_available == True)\
         .order_by(Product.name)
     items = (await db.execute(q)).scalars().all()
-    products = []
-    for sp in items:
-        products.append(seller_product_dict(sp))
-    return ok({"products": products, "total": len(products)})
+    products = [seller_product_dict(sp) for sp in items]
+    # The seller's package and its profit rate, so the order screen can show the
+    # right percentage. The house store sells at storeroom price (rate 0).
+    seller = await db.get(User, seller_id)
+    package = await package_of(db, seller_id)
+    is_house = bool(seller and seller.email == HOUSE_SELLER_EMAIL)
+    return ok({
+        "products": products, "total": len(products),
+        "package": package.value,
+        "profitRate": 0.0 if is_house else float(profit_rate(package)),
+    })
 
 
 # Public marketplace — all active seller products

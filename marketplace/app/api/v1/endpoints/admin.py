@@ -14,7 +14,7 @@ from app.models.models import (User, UserRole, ShopStatus, Transaction, TxType, 
                                 Order, OrderStatus, Notification, NotificationType, Product, SellerKyc)
 from app.core.deps import admin_only
 from app.core.response import ok, err
-from app.core.pricing import reprice_seller, HOUSE_SELLER_EMAIL
+from app.core.pricing import reprice_seller, HOUSE_SELLER_EMAIL, seller_rates
 from app.core.platform_settings import get_wallets, set_wallets, clean_wallet, WalletValidationError
 from app.api.v1.endpoints.auth import kyc_dict
 from app.api.v1.endpoints.wallet import proof_url
@@ -171,8 +171,10 @@ async def all_orders(
         result = await db.execute(select(User).where(User.id.in_(seller_ids | customer_ids)))
         users_by_id = {u.id: u for u in result.scalars().all()}
 
+    rates = await seller_rates(db, seller_ids)
+
     def enrich(o: Order) -> dict:
-        d = order_dict(o)
+        d = order_dict(o, rates=rates)
         customer = users_by_id.get(o.customer_id)
         d["customerEmail"] = customer.email if customer else None
         for item, oi in zip(d["items"], o.items):

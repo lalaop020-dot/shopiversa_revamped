@@ -11,10 +11,10 @@ import useAuthStore from '../../store/useAuthStore'
 import { useProductStore } from '../../store/useProductStore'
 import usePlatformStore, { DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
 import toast from 'react-hot-toast'
+import { PACKAGE_LIMITS, normalizePackageName } from '../../utils/packages'
 
 const LIMIT = 24
 
-const PACKAGE_LIMITS = { Silver: 300, Gold: 1000, Platinum: 2000 }
 
 export default function ProductStorehouse() {
   const { user } = useAuthStore()
@@ -35,7 +35,7 @@ export default function ProductStorehouse() {
   }, [sellerProducts])
 
   const sub          = usePlatformStore((s) => s.sellerSubscriptions[sellerEmail] || DEFAULT_SUBSCRIPTION)
-  const packageLimit = PACKAGE_LIMITS[sub?.name] ?? 300
+  const packageLimit = PACKAGE_LIMITS[normalizePackageName(sub?.name)] ?? 300
 
   const [searchTerm,      setSearchTerm]      = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')

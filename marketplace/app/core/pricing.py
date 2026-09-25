@@ -17,8 +17,8 @@ HOUSE_SELLER_EMAIL = "store@shopiversa.com"
 
 PROFIT_RATES = {
     PackageName.Silver: Decimal("0.17"),
-    PackageName.Gold: Decimal("0.25"),
-    PackageName.Platinum: Decimal("0.35"),
+    PackageName.Gold: Decimal("0.20"),
+    PackageName.Diamond: Decimal("0.25"),
 }
 DEFAULT_PACKAGE = PackageName.Silver
 
@@ -27,9 +27,9 @@ DEFAULT_PACKAGE = PackageName.Silver
 PACKAGE_PRICES = {
     PackageName.Silver: Decimal("0"),
     PackageName.Gold: Decimal("499"),
-    PackageName.Platinum: Decimal("999"),
+    PackageName.Diamond: Decimal("999"),
 }
-PACKAGE_RANK = {PackageName.Silver: 0, PackageName.Gold: 1, PackageName.Platinum: 2}
+PACKAGE_RANK = {PackageName.Silver: 0, PackageName.Gold: 1, PackageName.Diamond: 2}
 
 _CENT = Decimal("0.01")
 
@@ -76,6 +76,51 @@ async def reprice_seller(db: AsyncSession, seller_id: int) -> int:
             sp.price = new
             changed += 1
     return changed
+
+
+async def seller_rates(db: AsyncSession, seller_ids) -> dict:
+    """{seller_id: current profit rate as float} - 0.0 for the house store. Lets
+    order screens show the right percentage for each seller in one query."""
+    ids = {i for i in seller_ids if i}
+    if not ids:
+        return {}
+    rows = (await db.execute(
+        select(User.id, User.email, Subscription.package_name)
+        .outerjoin(Subscription, Subscription.seller_id == User.id)
+        .where(User.id.in_(ids))
+    )).all()
+    return {uid: (0.0 if email == HOUSE_SELLER_EMAIL else float(profit_rate(pkg)))
+            for uid, email, pkg in rows}
+
+
+async def reprice_all_sellers() -> int:
+    """Startup hook: bring every real seller's listing prices in line with the
+    current rates. Prices are a pure function of (storeroom price, package), so
+    this is idempotent and only touches rows that are out of date (e.g. after a
+    rate change). The house seller is exempt. Never blocks startup on failure."""
+    from app.db.database import AsyncSessionLocal
+    try:
+        async with AsyncSessionLocal() as db:
+            rows = (await db.execute(
+                select(SellerProduct, Product, Subscription.package_name)
+                .join(Product, SellerProduct.global_id == Product.id)
+                .join(User, SellerProduct.seller_id == User.id)
+                .outerjoin(Subscription, Subscription.seller_id == User.id)
+                .where(User.email != HOUSE_SELLER_EMAIL)
+            )).all()
+            changed = 0
+            for sp, gp, package in rows:
+                new = seller_price(gp.price, package or DEFAULT_PACKAGE)
+                if sp.price != new:
+                    sp.price = new
+                    changed += 1
+            await db.commit()
+            if changed:
+                print(f"Re-priced {changed} seller listing(s) to the current package rates")
+            return changed
+    except Exception as e:
+        print(f"Startup re-pricing skipped: {e}")
+        return 0
 
 
 async def reprice_product(db: AsyncSession, gp: Product) -> int:

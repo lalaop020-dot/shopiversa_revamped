@@ -6,44 +6,11 @@ import { Card } from '../../components/common/Card'
 import { Input } from '../../components/common/Input'
 import { Button } from '../../components/common/Button'
 import useOrderStore, { getOrderCustomerEmail } from '../../store/useOrderStore'
-import usePlatformStore from '../../store/usePlatformStore'
+import { orderPricingBreakdown } from '../../utils/packages'
 import { ORDER_FLOW, statusMeta, nextStatusOptions } from '../../utils/orderStatus'
 import AdminPlaceOrderModal from '../../components/admin/AdminPlaceOrderModal'
 
 const FILTERS = ['All', ...ORDER_FLOW, 'Cancelled']
-const PROFIT_RATES = { Silver: '17%', Gold: '25%', Platinum: '35%' }
-
-const getSellerProfitPct = (order) => {
-  if (!order) return '17%'
-  if (order.subtotal > 0 && order.tax > 0) {
-    const calcPct = Math.round((order.tax / order.subtotal) * 100)
-    if (calcPct === 17 || calcPct === 25 || calcPct === 35) return `${calcPct}%`
-  }
-  const sellerSubscriptions = usePlatformStore.getState()?.sellerSubscriptions || {}
-  const sellerEmail = order.items?.[0]?.sellerEmail || order.customerEmail || ''
-  const sub = sellerSubscriptions[sellerEmail] || sellerSubscriptions['me']
-  const pkgName = sub?.name || sub?.packageName
-  return PROFIT_RATES[pkgName] || '17%'
-}
-
-const getOrderPricingBreakdown = (order) => {
-  if (!order) return { profitPctLabel: '17%', storeroomPrice: 0, sellerProfit: 0, totalPrice: 0 }
-  const profitPctLabel = getSellerProfitPct(order)
-  const profitRate = parseFloat(profitPctLabel) / 100
-  const total = order.total || 0
-  let storeroomPrice = 0
-  let sellerProfit = 0
-
-  if (order.subtotal > 0 && order.tax > 0 && order.subtotal !== order.total) {
-    storeroomPrice = order.subtotal
-    sellerProfit = order.tax
-  } else {
-    storeroomPrice = Math.round((total / (1 + profitRate)) * 100) / 100
-    sellerProfit = Math.round((total - storeroomPrice) * 100) / 100
-  }
-
-  return { profitPctLabel, storeroomPrice, sellerProfit, totalPrice: total }
-}
 
 export default function AdminOrders() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -334,7 +301,7 @@ export default function AdminOrders() {
             </div>
 
             {(() => {
-              const breakdown = getOrderPricingBreakdown(selectedOrder)
+              const breakdown = orderPricingBreakdown(selectedOrder)
               return (
                 <div className="border-t border-dark-border pt-4 space-y-2 text-sm">
                   <div className="flex justify-between text-slate-400">
@@ -345,6 +312,12 @@ export default function AdminOrders() {
                     <span>Seller profit ({breakdown.profitPctLabel})</span>
                     <span className="font-bold text-green-500">+${breakdown.sellerProfit.toFixed(2)}</span>
                   </div>
+                  {breakdown.tax > 0 && (
+                    <div className="flex justify-between text-slate-400">
+                      <span>Tax</span>
+                      <span className="font-bold text-slate-200">${breakdown.tax.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-3 border-t border-dark-border mt-2">
                     <span className="text-white text-lg font-bold">Total price</span>
                     <span className="text-primary text-2xl font-bold">${breakdown.totalPrice.toFixed(2)}</span>

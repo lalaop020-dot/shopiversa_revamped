@@ -14,6 +14,8 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
   // Data states
   const [sellers, setSellers] = useState([])
   const [selectedSeller, setSelectedSeller] = useState(null)
+  // The selected shop's package + profit rate (0.20 = 20%), as decided by the server.
+  const [sellerPlan, setSellerPlan] = useState({ package: null, profitRate: null })
   const [products, setProducts] = useState([])
   const [loadingSellers, setLoadingSellers] = useState(false)
   const [loadingProducts, setLoadingProducts] = useState(false)
@@ -74,8 +76,10 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
       // Only this shop's own listings — never the whole storeroom.
       const { data } = await api.get(`/admin/sellers/${seller.id}/products`)
       setProducts(data?.data?.products || [])
+      setSellerPlan({ package: data?.data?.package || null, profitRate: data?.data?.profitRate ?? null })
     } catch {
       setProducts([])
+      setSellerPlan({ package: null, profitRate: null })
       toast.error('Could not load this shop\'s products')
     } finally {
       setLoadingProducts(false)
@@ -115,9 +119,13 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
   const totalItemsCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems])
   const totalPrice = useMemo(() => cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0), [cartItems])
   const storeroomPriceTotal = useMemo(() => cartItems.reduce((sum, item) => sum + (item.storeroomPrice * item.quantity), 0), [cartItems])
-  const sellerProfit = useMemo(() => Math.max(0, totalPrice - storeroomPriceTotal), [totalPrice, storeroomPriceTotal])
-  // Profit is a markup on the storeroom price (17% / 25% / 35% by package).
-  const profitPercentage = useMemo(() => storeroomPriceTotal > 0 ? Math.round((sellerProfit / storeroomPriceTotal) * 100) : 0, [sellerProfit, storeroomPriceTotal])
+  // Profit is a markup on the storeroom price set by the seller's package
+  // (Silver 17% / Gold 20% / Diamond 25%): e.g. storeroom $100 on Gold -> $20.00
+  // profit, $120.00 total. The amounts are the prices the server will charge.
+  const sellerProfit = useMemo(() => Math.round((totalPrice - storeroomPriceTotal) * 100) / 100, [totalPrice, storeroomPriceTotal])
+  const profitPercentage = sellerPlan.profitRate != null
+    ? Math.round(sellerPlan.profitRate * 1000) / 10
+    : (storeroomPriceTotal > 0 ? Math.round((sellerProfit / storeroomPriceTotal) * 1000) / 10 : 0)
 
   const handlePlaceOrder = async () => {
     if (!cartItems.length) return toast.error('Please select at least one product')
@@ -396,7 +404,7 @@ export default function AdminPlaceOrderModal({ isOpen, onClose, onSuccess }) {
                   <span className="font-bold text-slate-200">${storeroomPriceTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Seller profit ({profitPercentage}%)</span>
+                  <span className="text-slate-400">Seller profit ({sellerPlan.package ? `${sellerPlan.package} · ` : ''}{profitPercentage}%)</span>
                   <span className="font-bold text-green-500">+${sellerProfit.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-3 border-t border-dark-border/40">
