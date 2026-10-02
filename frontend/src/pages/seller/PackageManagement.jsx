@@ -41,7 +41,7 @@ export default function PackageManagement() {
       name: 'Silver',
       price: '$0',
       priceVal: 0,
-      period: '/mo',
+      period: '/ year',
       profitPercentage: '17%',
       features: [
         'Up to 300 active products',
@@ -55,7 +55,7 @@ export default function PackageManagement() {
       name: 'Gold',
       price: '$499',
       priceVal: 499,
-      period: '/mo',
+      period: '/ year',
       profitPercentage: '20%',
       features: [
         'Up to 1000 active products',
@@ -70,7 +70,7 @@ export default function PackageManagement() {
       name: 'Diamond',
       price: '$999',
       priceVal: 999,
-      period: '/mo',
+      period: '/ year',
       profitPercentage: '25%',
       features: [
         'Up to 2000 active products',

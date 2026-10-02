@@ -563,8 +563,19 @@ export default function ShopSettings() {
                   </div>
 
                   <div className="md:col-span-2 pt-6 border-t border-dark-border">
-                    <h4 className="font-bold mb-1 text-primary">Current Transaction Password</h4>
+                    <h4 className="font-bold mb-1 text-primary">Update Transaction Password</h4>
                     <p className="text-xs text-slate-500 mb-4">Set a secure 5-digit transaction password for confirming orders.</p>
+                    
+                    <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2">
+                      <Input
+                        label="Current Transaction Password" 
+                        type="text" 
+                        value={getOrCreateDefaultTxnPassword(user?.email)}
+                        readOnly
+                        className="bg-dark-bg/50 text-slate-400 font-mono cursor-default"
+                      />
+                    </div>
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Input
                         label="New Transaction Password (5 digits)" type="password" placeholder="•••••"

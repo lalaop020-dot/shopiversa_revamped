@@ -401,6 +401,46 @@ export default function DashboardOverview({ role }) {
           </div>
         </Card>
       </div>
+
+      {role === 'admin' && (
+        <Card className="mt-8 space-y-4">
+          <div className="flex items-center justify-between border-b border-dark-border pb-4">
+            <h3 className="font-bold text-lg">Seller Package & KYC Overview</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-dark-bg text-slate-400 text-sm">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Req ID</th>
+                  <th className="px-4 py-3 font-medium">Seller</th>
+                  <th className="px-4 py-3 font-medium">Package Type</th>
+                  <th className="px-4 py-3 font-medium">KYC Details</th>
+                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Approval Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-dark-border">
+                {packageRequests.length === 0 ? (
+                  <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">No package data found</td></tr>
+                ) : packageRequests.map((req) => (
+                  <tr key={req.id} className="hover:bg-dark-bg/50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{req.id}</td>
+                    <td className="px-4 py-3 text-sm font-semibold">{req.sellerEmail}</td>
+                    <td className="px-4 py-3 font-bold text-primary">{req.packageName}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">Verified during signup</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{req.date}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${req.status === 'Approved' ? 'bg-green-500/10 text-green-500' : req.status === 'Pending' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {req.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

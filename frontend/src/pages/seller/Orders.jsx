@@ -18,7 +18,7 @@ const ALL_STATUSES = [...ORDER_FLOW, 'Cancelled']
 /* ─────────────────────────────────────────────────────────────────────
    Inline Transaction Password Prompt (renders inside the order modal)
 ───────────────────────────────────────────────────────────────────── */
-function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
+function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying, onCancel }) {
   const [pwd, setPwd] = useState('')
   const [show, setShow] = useState(false)
   const verifyTransactionPassword = useOrderStore(s => s.verifyTransactionPassword)
@@ -43,27 +43,19 @@ function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-4"
+      className="space-y-6 mt-2"
     >
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-          <KeyRound className="w-4 h-4 text-amber-400" />
-        </div>
-        <div>
-          <p className="font-bold text-amber-300 text-sm">Transaction Password Required</p>
-          <p className="text-xs text-slate-400 mt-0.5">Enter your security password to authorise order actions.</p>
-        </div>
-      </div>
+      <p className="text-white text-[15px]">Enter your transaction password to confirm purchase</p>
 
-      <form onSubmit={handleVerify} className="space-y-3">
+      <form onSubmit={handleVerify} className="space-y-6">
         {/* 5-slot visual password input */}
-        <div className="relative flex items-center justify-center gap-3 py-4">
+        <div className="relative flex items-center gap-3">
           {/* Invisible Input Overlay */}
           <input
             type={show ? 'text' : 'password'}
             value={pwd}
             onChange={(e) => setPwd(e.target.value.slice(0, 5))}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-text text-transparent z-10"
+            className="absolute inset-0 w-[calc(100%-3rem)] h-full opacity-0 cursor-text text-transparent z-10"
             maxLength={5}
             autoComplete="off"
             required
@@ -75,14 +67,14 @@ function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
             return (
               <div
                 key={i}
-                className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
+                className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
                   char
                     ? 'border-primary bg-primary/10 text-white'
-                    : 'border-dark-border bg-dark-bg/50'
+                    : 'border-slate-700/50 bg-[#161a29]'
                 }`}
               >
                 {char ? (
-                   show ? char : <span className="w-3 h-3 rounded-full bg-primary block" />
+                   show ? char : <span className="w-3.5 h-3.5 rounded-full bg-primary block" />
                 ) : null}
               </div>
             )
@@ -95,43 +87,33 @@ function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
               e.preventDefault()
               setShow(!show)
             }}
-            className="absolute -right-8 sm:-right-4 top-1/2 -translate-y-1/2 z-20 p-2 text-slate-500 hover:text-white transition-colors"
+            className="ml-2 z-20 p-2 text-slate-400 hover:text-white transition-colors"
             title={show ? "Hide password" : "Show password"}
           >
             {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
 
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          <AlertTriangle className="inline w-3 h-3 mr-1 text-amber-400" />
-          Your transaction password was auto-generated during shop setup. You can update it in{' '}
-          <span className="text-primary font-medium">Settings → Security</span>.
-        </p>
-
-        <Button
-          type="submit"
-          className="w-full bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white font-bold gap-2"
-          isLoading={isVerifying}
-          disabled={!pwd.trim()}
-        >
-          <ShieldCheck className="w-4 h-4" />
-          Confirm Order
-        </Button>
+        <div className="flex items-center gap-3 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="flex-1 py-2.5 border-dark-border text-white hover:bg-dark-bg"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            className="flex-1 py-2.5 bg-[#17b954] hover:bg-[#14a34a] border-0 text-white font-medium"
+            isLoading={isVerifying}
+            disabled={!pwd.trim()}
+          >
+            Confirm Order
+          </Button>
+        </div>
       </form>
     </motion.div>
-  )
-}
-
-/* small status badge */
-function TxnStatusBadge({ verified }) {
-  return verified ? (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold uppercase">
-      <CheckCircle2 className="w-3 h-3" /> Verified
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[11px] font-bold uppercase">
-      <Lock className="w-3 h-3" /> Locked
-    </span>
   )
 }
 
@@ -450,28 +432,14 @@ export default function SellerOrders() {
                 if (!options.length) return null // no actions available
                 
                 return (
-                  <div className="mt-6 rounded-2xl border border-dark-border bg-dark-bg/60 overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-dark-border">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
-                          txnVerified ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/25'
-                        }`}>
-                          {txnVerified ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4 text-amber-400" />}
-                        </div>
-                        <div>
-                          <p className="font-bold text-sm text-white">Order Actions & Security</p>
-                          <p className="text-[11px] text-slate-500">Transaction password required to authorise updates</p>
-                        </div>
-                      </div>
-                      <TxnStatusBadge verified={txnVerified} />
-                    </div>
-
-                    <div className="p-5">
+                  <div className="mt-6 pt-6 border-t border-dark-border">
+                    <div>
                       {!txnVerified ? (
                         <TxnPasswordPrompt
                           onVerified={() => setTxnVerified(true)}
                           isVerifying={isVerifying}
                           setIsVerifying={setIsVerifying}
+                          onCancel={closeModal}
                         />
                       ) : (
                         <motion.div

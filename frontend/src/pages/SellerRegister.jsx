@@ -20,6 +20,11 @@ const step1Schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  txnPassword: z.string().length(5, 'Must be exactly 5 digits').regex(/^\d+$/, 'Digits only'),
+  confirmTxnPassword: z.string().length(5, 'Must be exactly 5 digits').regex(/^\d+$/, 'Digits only'),
+}).refine((data) => data.txnPassword === data.confirmTxnPassword, {
+  message: "Transaction passwords don't match",
+  path: ['confirmTxnPassword'],
 })
 
 const step2Schema = z.object({
@@ -470,6 +475,7 @@ export default function SellerRegister() {
       form.append('shopName', shopName)
       form.append('email', email)
       form.append('password', password)
+      form.append('txnPassword', getValues().txnPassword)
       form.append('docFront', docFrontFile)
       form.append('docBack', docBackFile)
       if (profileFile) form.append('profile', profileFile)
@@ -560,6 +566,35 @@ export default function SellerRegister() {
               {...register('password')}
             />
             <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="relative">
+              <Input
+                id="txnPassword"
+                label="Enter Transaction Password"
+                type="password"
+                placeholder="•••••"
+                maxLength={5}
+                className="pl-10"
+                error={errors.txnPassword?.message}
+                {...register('txnPassword')}
+              />
+              <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
+            </div>
+            <div className="relative">
+              <Input
+                id="confirmTxnPassword"
+                label="Confirm Transaction Password"
+                type="password"
+                placeholder="•••••"
+                maxLength={5}
+                className="pl-10"
+                error={errors.confirmTxnPassword?.message}
+                {...register('confirmTxnPassword')}
+              />
+              <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
+            </div>
           </div>
 
           <Button type="submit" className="w-full group mt-2">
