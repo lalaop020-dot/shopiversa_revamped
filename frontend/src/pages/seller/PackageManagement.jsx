@@ -281,41 +281,47 @@ export default function PackageManagement() {
                       Enter your transaction password to confirm purchase
                     </p>
 
-                    {/* 5-slot visual password dots */}
-                    <div className="flex items-center justify-center gap-3 py-2">
-                      {[0, 1, 2, 3, 4].map((i) => (
-                        <div
-                          key={i}
-                          className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
-                            txnPwd.length > i
-                              ? 'border-primary bg-primary/15'
-                              : 'border-dark-border bg-dark-bg'
-                          }`}
-                        >
-                          {txnPwd.length > i && (
-                            <span className="w-3 h-3 rounded-full bg-primary block" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Actual password input */}
-                    <div className="relative">
+                    {/* 5-slot visual password input */}
+                    <div className="relative flex items-center justify-center gap-3 py-4">
+                      {/* Invisible Input Overlay */}
                       <input
                         type={showTxnPwd ? 'text' : 'password'}
                         value={txnPwd}
-                        onChange={(e) => setTxnPwd(e.target.value)}
-                        className="input-field pr-10 pl-10 font-mono tracking-widest text-center"
-                        placeholder="Enter password"
-                        maxLength={8}
+                        onChange={(e) => setTxnPwd(e.target.value.slice(0, 5))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-text text-transparent z-10"
+                        maxLength={5}
                         autoComplete="off"
                         required
                       />
-                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
+
+                      {/* Visual Boxes */}
+                      {[0, 1, 2, 3, 4].map((i) => {
+                        const char = txnPwd[i]
+                        return (
+                          <div
+                            key={i}
+                            className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
+                              char
+                                ? 'border-primary bg-primary/10 text-white'
+                                : 'border-dark-border bg-dark-bg/50'
+                            }`}
+                          >
+                            {char ? (
+                               showTxnPwd ? char : <span className="w-3 h-3 rounded-full bg-primary block" />
+                            ) : null}
+                          </div>
+                        )
+                      })}
+
+                      {/* Show/Hide Toggle */}
                       <button
                         type="button"
-                        onClick={() => setShowTxnPwd(!showTxnPwd)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setShowTxnPwd(!showTxnPwd)
+                        }}
+                        className="absolute -right-8 sm:-right-4 top-1/2 -translate-y-1/2 z-20 p-2 text-slate-500 hover:text-white transition-colors"
+                        title={showTxnPwd ? "Hide password" : "Show password"}
                       >
                         {showTxnPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>

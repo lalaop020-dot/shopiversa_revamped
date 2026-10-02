@@ -56,21 +56,49 @@ function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
       </div>
 
       <form onSubmit={handleVerify} className="space-y-3">
-        <div className="relative">
-          <Input
+        {/* 5-slot visual password input */}
+        <div className="relative flex items-center justify-center gap-3 py-4">
+          {/* Invisible Input Overlay */}
+          <input
             type={show ? 'text' : 'password'}
-            placeholder="Enter transaction password"
             value={pwd}
-            onChange={e => setPwd(e.target.value)}
-            className="pr-10 tracking-widest font-mono"
+            onChange={(e) => setPwd(e.target.value.slice(0, 5))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-text text-transparent z-10"
+            maxLength={5}
             autoComplete="off"
+            required
           />
+
+          {/* Visual Boxes */}
+          {[0, 1, 2, 3, 4].map((i) => {
+            const char = pwd[i]
+            return (
+              <div
+                key={i}
+                className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center text-xl font-bold transition-all ${
+                  char
+                    ? 'border-primary bg-primary/10 text-white'
+                    : 'border-dark-border bg-dark-bg/50'
+                }`}
+              >
+                {char ? (
+                   show ? char : <span className="w-3 h-3 rounded-full bg-primary block" />
+                ) : null}
+              </div>
+            )
+          })}
+
+          {/* Show/Hide Toggle */}
           <button
             type="button"
-            onClick={() => setShow(v => !v)}
-            className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 transition-colors"
+            onClick={(e) => {
+              e.preventDefault()
+              setShow(!show)
+            }}
+            className="absolute -right-8 sm:-right-4 top-1/2 -translate-y-1/2 z-20 p-2 text-slate-500 hover:text-white transition-colors"
+            title={show ? "Hide password" : "Show password"}
           >
-            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {show ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
 
@@ -82,12 +110,12 @@ function TxnPasswordPrompt({ onVerified, isVerifying, setIsVerifying }) {
 
         <Button
           type="submit"
-          className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold gap-2"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 border-emerald-600 text-white font-bold gap-2"
           isLoading={isVerifying}
           disabled={!pwd.trim()}
         >
           <ShieldCheck className="w-4 h-4" />
-          Verify &amp; Unlock Order Actions
+          Confirm Order
         </Button>
       </form>
     </motion.div>

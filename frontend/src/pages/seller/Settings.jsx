@@ -68,42 +68,7 @@ export default function ShopSettings() {
   
   const [activeTab, setActiveTab] = useState('shop')
 
-  // ── Default transaction password (seller-only, shown in Security tab) ───
-  const [defaultPwdVisible, setDefaultPwdVisible] = useState(false)
-  const [defaultPwdCopied, setDefaultPwdCopied] = useState(false)
-  const defaultTxnPwd = role === 'seller' ? getOrCreateDefaultTxnPassword(user?.email) : null
 
-  const handleCopyDefaultPwd = () => {
-    if (!defaultTxnPwd) return
-    navigator.clipboard.writeText(defaultTxnPwd).then(() => {
-      setDefaultPwdCopied(true)
-      toast.success('Default transaction password copied!')
-      setTimeout(() => setDefaultPwdCopied(false), 2500)
-    })
-  }
-
-  const handleRegenerateDefaultPwd = () => {
-    if (!user?.email) return
-    const key = `txnpwd:${user.email}`
-    localStorage.removeItem(key)
-    // Re-generate by calling again (will create a new one since key was removed).
-    // To make the new one truly random (not seeded), we append a timestamp.
-    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    let pwd = ''
-    for (let i = 0; i < 6; i++) {
-      pwd += charset[Math.floor(Math.random() * charset.length)]
-    }
-    localStorage.setItem(key, pwd)
-    toast.success('Transaction password regenerated! Keep it safe.')
-    // Force re-render
-    window.dispatchEvent(new Event('storage'))
-    forceRerender(c => c + 1)
-  }
-  const [, forceRerender] = useState(0)
-  // Re-read after storage events (e.g. regenerate)
-  const currentDefaultTxnPwd = role === 'seller'
-    ? (localStorage.getItem(`txnpwd:${user?.email}`) || defaultTxnPwd)
-    : null
 
   // Seller security tab state
   const [currentLoginPassword, setCurrentLoginPassword] = useState('')
@@ -569,67 +534,7 @@ export default function ShopSettings() {
             {activeTab === 'security' && (
               <div className="space-y-6 animate-fade-in">
 
-                {/* ═══ DEFAULT TRANSACTION PASSWORD CARD ═══ */}
-                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-4 border-b border-amber-500/15">
-                    <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                      <KeyRound className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-amber-300 text-sm">Your Default Transaction Password</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Auto-generated at account creation — unique to your shop</p>
-                    </div>
-                    <span className="ml-auto px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400 text-[10px] font-bold uppercase tracking-wide shrink-0">6-char code</span>
-                  </div>
 
-                  <div className="p-5 space-y-4">
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      This is your <strong className="text-white">built-in transaction password</strong>. Enter it in the Orders section to authorise
-                      confirmations, shipments, and deliveries. You can set a custom password below or regenerate this one.
-                    </p>
-
-                    {/* Password row */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center bg-dark-bg border border-amber-500/25 rounded-xl px-4 py-2.5 font-mono text-xl font-bold tracking-[0.45em] text-amber-300 select-all min-w-[160px]">
-                        {defaultPwdVisible ? currentDefaultTxnPwd : '• • • • • •'}
-                      </div>
-                      {/* Reveal */}
-                      <button
-                        onClick={() => setDefaultPwdVisible(v => !v)}
-                        className="w-9 h-9 rounded-xl bg-dark-bg border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-amber-500/40 transition-all"
-                        title={defaultPwdVisible ? 'Hide' : 'Reveal'}
-                      >
-                        {defaultPwdVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                      {/* Copy */}
-                      <button
-                        onClick={handleCopyDefaultPwd}
-                        className="w-9 h-9 rounded-xl bg-dark-bg border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-primary/40 transition-all"
-                        title="Copy"
-                      >
-                        {defaultPwdCopied
-                          ? <CheckCircle2 className="w-4 h-4 text-green-400" />
-                          : <Copy className="w-4 h-4" />
-                        }
-                      </button>
-                      {/* Regenerate */}
-                      <button
-                        onClick={handleRegenerateDefaultPwd}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-dark-bg border border-dark-border text-slate-400 hover:text-white hover:border-amber-500/40 transition-all text-xs font-medium"
-                        title="Generate a new random password"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" /> Regenerate
-                      </button>
-                    </div>
-
-                    <p className="text-[11px] text-slate-600 leading-relaxed flex items-start gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-500/50 shrink-0 mt-0.5" />
-                      Keep this password private. Anyone with it can confirm order transactions on your behalf.
-                      Use the form below to replace it with a custom password you'll remember easily.
-                    </p>
-                  </div>
-                </div>
-                {/* ═══ END DEFAULT PASSWORD CARD ═══ */}
 
                 {/* ─── Password change forms ─── */}
                 <div className="grid md:grid-cols-2 gap-6">
@@ -658,18 +563,20 @@ export default function ShopSettings() {
                   </div>
 
                   <div className="md:col-span-2 pt-6 border-t border-dark-border">
-                    <h4 className="font-bold mb-1 text-primary">Set Custom Transaction Password</h4>
-                    <p className="text-xs text-slate-500 mb-4">Override your auto-generated password with a custom one (6–8 digits/chars).</p>
+                    <h4 className="font-bold mb-1 text-primary">Current Transaction Password</h4>
+                    <p className="text-xs text-slate-500 mb-4">Set a secure 5-digit transaction password for confirming orders.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <Input
-                        label="New Transaction Password (6-8 digits)" type="password" placeholder="••••••"
+                        label="New Transaction Password (5 digits)" type="password" placeholder="•••••"
+                        maxLength={5}
                         value={newTxnPassword}
-                        onChange={(e) => setNewTxnPassword(e.target.value)}
+                        onChange={(e) => setNewTxnPassword(e.target.value.replace(/\D/g, '').slice(0, 5))}
                       />
                       <Input
-                        label="Confirm Transaction Password" type="password" placeholder="••••••"
+                        label="Confirm Transaction Password" type="password" placeholder="•••••"
+                        maxLength={5}
                         value={confirmTxnPassword}
-                        onChange={(e) => setConfirmTxnPassword(e.target.value)}
+                        onChange={(e) => setConfirmTxnPassword(e.target.value.replace(/\D/g, '').slice(0, 5))}
                       />
                     </div>
                     <div className="flex justify-end pt-4">
