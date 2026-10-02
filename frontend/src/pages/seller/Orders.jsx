@@ -349,100 +349,6 @@ export default function SellerOrders() {
                 )
               })()}
 
-              {/* ═══════════════════════════════════════════════════════════
-                  TRANSACTION PASSWORD SECTION
-              ═════════════════════════════════════════════════════════════*/}
-              <div className="rounded-2xl border border-dark-border bg-dark-bg/60 overflow-hidden">
-                {/* section header */}
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-dark-border">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
-                      txnVerified
-                        ? 'bg-emerald-500/10 border-emerald-500/30'
-                        : 'bg-amber-500/10 border-amber-500/25'
-                    }`}>
-                      {txnVerified
-                        ? <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                        : <Lock className="w-4 h-4 text-amber-400" />
-                      }
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-white">Transaction Password</p>
-                      <p className="text-[11px] text-slate-500">Security verification for order actions</p>
-                    </div>
-                  </div>
-                  <TxnStatusBadge verified={txnVerified} />
-                </div>
-
-                {/* prompt or verified state */}
-                <div className="p-5">
-                  {!txnVerified ? (
-                    <TxnPasswordPrompt
-                      onVerified={() => setTxnVerified(true)}
-                      isVerifying={isVerifying}
-                      setIsVerifying={setIsVerifying}
-                    />
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20"
-                    >
-                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-emerald-300">Identity Verified</p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          Order actions unlocked for this session. Close &amp; re-open to reset.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setTxnVerified(false)}
-                        className="ml-auto text-xs text-slate-500 hover:text-white border border-dark-border rounded-lg px-2.5 py-1 transition-colors shrink-0"
-                      >
-                        Re-lock
-                      </button>
-                    </motion.div>
-                  )}
-                </div>
-              </div>
-              {/* ═══════════════════════════════════════════════════════════ */}
-
-              {/* Status action buttons */}
-              {(() => {
-                const options = nextStatusOptions(selectedOrder.status)
-                if (!options.length) return null
-                return (
-                  <div className="bg-dark-bg/60 p-4 rounded-xl border border-dark-border space-y-3">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                      <ArrowRight className="w-3.5 h-3.5" /> Update Order Status
-                    </p>
-                    {!txnVerified && (
-                      <p className="text-xs text-amber-400 flex items-center gap-1.5">
-                        <Lock className="w-3 h-3" />
-                        Verify your transaction password above to enable these actions.
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      {options.map(opt => (
-                        <Button
-                          key={opt}
-                          size="sm"
-                          disabled={!txnVerified || updatingStatus}
-                          isLoading={updatingStatus}
-                          onClick={() => handleUpdateStatus(selectedOrder.id, opt)}
-                          className={!txnVerified ? 'opacity-40 cursor-not-allowed' : (
-                            opt === 'Confirmed' ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold' :
-                            opt === 'Cancelled' ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''
-                          )}
-                          variant={opt === 'Confirmed' ? 'primary' : opt === 'Cancelled' ? 'outline' : 'secondary'}
-                        >
-                          {opt === 'Confirmed' ? '✓ Place / Confirm Order' : `Mark ${statusMeta(opt).label}`}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })()}
 
               {/* Shipping & Payment */}
               <div className="grid sm:grid-cols-2 gap-4">
@@ -507,6 +413,81 @@ export default function SellerOrders() {
                   </div>
                 )
               })()}
+
+              {/* ═══════════════════════════════════════════════════════════
+                  ORDER ACTIONS & TRANSACTION PASSWORD (MOVED TO BOTTOM)
+              ═════════════════════════════════════════════════════════════*/}
+              {(() => {
+                const options = nextStatusOptions(selectedOrder.status)
+                if (!options.length) return null // no actions available
+                
+                return (
+                  <div className="mt-6 rounded-2xl border border-dark-border bg-dark-bg/60 overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-dark-border">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center border ${
+                          txnVerified ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/25'
+                        }`}>
+                          {txnVerified ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4 text-amber-400" />}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-white">Order Actions & Security</p>
+                          <p className="text-[11px] text-slate-500">Transaction password required to authorise updates</p>
+                        </div>
+                      </div>
+                      <TxnStatusBadge verified={txnVerified} />
+                    </div>
+
+                    <div className="p-5">
+                      {!txnVerified ? (
+                        <TxnPasswordPrompt
+                          onVerified={() => setTxnVerified(true)}
+                          isVerifying={isVerifying}
+                          setIsVerifying={setIsVerifying}
+                        />
+                      ) : (
+                        <motion.div
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="space-y-4"
+                        >
+                          <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 rounded-xl mb-4">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                              <span className="text-sm font-bold text-emerald-300">Identity Verified — Actions Unlocked</span>
+                            </div>
+                            <button
+                              onClick={() => setTxnVerified(false)}
+                              className="text-xs text-slate-400 hover:text-white border border-dark-border rounded-lg px-2.5 py-1 transition-colors"
+                            >
+                              Re-lock
+                            </button>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-3">
+                            {options.map(opt => (
+                              <Button
+                                key={opt}
+                                disabled={updatingStatus}
+                                isLoading={updatingStatus}
+                                onClick={() => handleUpdateStatus(selectedOrder.id, opt)}
+                                className={
+                                  opt === 'Confirmed' ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold' :
+                                  opt === 'Cancelled' ? 'border-red-500/50 text-red-400 hover:bg-red-500/10' : ''
+                                }
+                                variant={opt === 'Confirmed' ? 'primary' : opt === 'Cancelled' ? 'outline' : 'secondary'}
+                              >
+                                {opt === 'Confirmed' ? '✓ Place / Confirm Order' : `Mark ${statusMeta(opt).label}`}
+                              </Button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
             </motion.div>
           </div>
         )}

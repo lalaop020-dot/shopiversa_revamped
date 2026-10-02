@@ -2,34 +2,18 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
-import { TrendingUp, TrendingDown, Users, ShoppingCart, DollarSign, Package, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Clock, KeyRound, Eye, EyeOff, Copy, CheckCircle2, ShieldCheck } from 'lucide-react'
+import { TrendingUp, TrendingDown, Users, ShoppingCart, DollarSign, Package, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Clock } from 'lucide-react'
 import useAuthStore from '../store/useAuthStore'
-import { getOrCreateDefaultTxnPassword } from '../store/useAuthStore'
 import usePlatformStore, { DEFAULT_BALANCE, DEFAULT_SUBSCRIPTION } from '../store/usePlatformStore'
 import { useProductStore } from '../store/useProductStore'
 import useOrderStore from '../store/useOrderStore'
 import { PROFIT_RATES, normalizePackageName } from '../utils/packages'
-import toast from 'react-hot-toast'
 
 
 export default function DashboardOverview({ role }) {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const email = user?.email || 'seller@demo.com'
-
-  // Default transaction password for seller
-  const [txnPwdVisible, setTxnPwdVisible] = useState(false)
-  const [txnPwdCopied, setTxnPwdCopied] = useState(false)
-  const defaultTxnPwd = role === 'seller' ? getOrCreateDefaultTxnPassword(email) : null
-
-  const handleCopyTxnPwd = () => {
-    if (!defaultTxnPwd) return
-    navigator.clipboard.writeText(defaultTxnPwd).then(() => {
-      setTxnPwdCopied(true)
-      toast.success('Transaction password copied!')
-      setTimeout(() => setTxnPwdCopied(false), 2500)
-    })
-  }
 
   const balances = usePlatformStore((state) => state.balances[email] || DEFAULT_BALANCE)
   const transactions = usePlatformStore((state) => state.transactions) || []
@@ -308,60 +292,6 @@ export default function DashboardOverview({ role }) {
           <Button variant="outline" size="sm" onClick={() => navigate('/seller/packages')}>
             View / Upgrade Plan
           </Button>
-        </div>
-      )}
-
-      {/* ── Default Transaction Password Card (seller only) ── */}
-      {role === 'seller' && (
-        <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-r from-amber-500/8 via-amber-500/4 to-transparent p-5 flex flex-col sm:flex-row sm:items-center gap-5">
-          {/* Icon */}
-          <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-            <KeyRound className="w-6 h-6 text-amber-400" />
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <p className="font-bold text-amber-300 text-sm">Your Default Transaction Password</p>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-400 text-[10px] font-bold uppercase tracking-wide">Auto-generated</span>
-            </div>
-            <p className="text-xs text-slate-400 mb-3">
-              Use this password to verify order actions. You can change it anytime under{' '}
-              <button
-                onClick={() => navigate('/seller/settings')}
-                className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-              >
-                Settings → Security
-              </button>.
-            </p>
-
-            {/* Password display */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 bg-dark-bg border border-amber-500/20 rounded-xl px-4 py-2.5 font-mono text-lg font-bold tracking-[0.35em] text-amber-300 select-all">
-                {txnPwdVisible ? defaultTxnPwd : '• • • • • •'}
-              </div>
-              <button
-                onClick={() => setTxnPwdVisible(v => !v)}
-                className="w-9 h-9 rounded-xl bg-dark-bg border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-amber-500/40 transition-all"
-                title={txnPwdVisible ? 'Hide password' : 'Reveal password'}
-              >
-                {txnPwdVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-              <button
-                onClick={handleCopyTxnPwd}
-                className="w-9 h-9 rounded-xl bg-dark-bg border border-dark-border flex items-center justify-center text-slate-400 hover:text-white hover:border-primary/40 transition-all"
-                title="Copy password"
-              >
-                {txnPwdCopied ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Right — shield */}
-          <div className="hidden lg:flex flex-col items-center gap-1 text-center shrink-0">
-            <ShieldCheck className="w-8 h-8 text-amber-400/50" />
-            <p className="text-[10px] text-slate-600 font-medium uppercase tracking-wider">Keep private</p>
-          </div>
         </div>
       )}
 
