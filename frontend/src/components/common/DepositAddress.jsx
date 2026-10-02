@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 
 // Map the network labels used across the UI to the keys of the wallets object
 // returned by the server ({ usdt, eth, btc }).
-export const NETWORK_KEYS = { 'USDT': 'usdt', 'ETH (TRC20)': 'eth', 'BTC': 'btc' }
+export const NETWORK_KEYS = { 'USDT (TRC20)': 'usdt', 'ETH (ERC20)': 'eth', 'BTC': 'btc' }
 
 export const addressFor = (wallets, network) => (wallets?.[NETWORK_KEYS[network] || 'usdt'] || '').trim()
 

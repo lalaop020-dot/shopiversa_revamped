@@ -29,7 +29,7 @@ export default function Checkout() {
 
   // Where to send payment: the admin-configured addresses, read from the server.
   const depositWallets = usePlatformStore((state) => state.depositWallets)
-  const [network, setNetwork] = useState('USDT')
+  const [network, setNetwork] = useState('USDT (TRC20)')
   const payAddress = addressFor(depositWallets, network)
   useEffect(() => { usePlatformStore.getState().fetchDepositWallets() }, [])
 
@@ -195,7 +195,7 @@ export default function Checkout() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
                   <div className="md:col-span-2 p-4 bg-dark-bg/50 border border-dark-border rounded-xl mb-4 space-y-3">
                     <div className="grid grid-cols-3 gap-2">
-                      {['USDT', 'ETH (TRC20)', 'BTC'].map((n) => (
+                      {['USDT (TRC20)', 'ETH (ERC20)', 'BTC'].map((n) => (
                         <button
                           key={n}
                           type="button"

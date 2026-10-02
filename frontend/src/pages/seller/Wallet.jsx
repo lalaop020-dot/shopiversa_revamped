@@ -24,8 +24,8 @@ export default function Wallet() {
 
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false)
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false)
-  const [depositCrypto, setDepositCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
-  const [withdrawCrypto, setWithdrawCrypto] = useState('USDT') // USDT, ETH (TRC20), BTC
+  const [depositCrypto, setDepositCrypto] = useState('USDT (TRC20)') // USDT (TRC20), ETH (ERC20), BTC
+  const [withdrawCrypto, setWithdrawCrypto] = useState('USDT (TRC20)') // USDT (TRC20), ETH (ERC20), BTC
   const [depositAmount, setDepositAmount] = useState('')
   const [depositTxid, setDepositTxid] = useState('')
   const [proofFile, setProofFile] = useState(null)
@@ -177,7 +177,7 @@ export default function Wallet() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Crypto Network</label>
               <div className="grid grid-cols-3 gap-2">
-                {['USDT', 'ETH (TRC20)', 'BTC'].map((c) => (
+                {['USDT (TRC20)', 'ETH (ERC20)', 'BTC'].map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -221,7 +221,7 @@ export default function Wallet() {
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Select Withdrawal Crypto</label>
               <div className="grid grid-cols-3 gap-2">
-                {['USDT', 'ETH (TRC20)', 'BTC'].map((c) => (
+                {['USDT (TRC20)', 'ETH (ERC20)', 'BTC'].map((c) => (
                   <button
                     key={c}
                     type="button"
@@ -241,7 +241,7 @@ export default function Wallet() {
               <Input label="Amount ($)" type="number" placeholder="50" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} />
               <Input 
                 label={`Your ${withdrawCrypto} Wallet Address`} 
-                placeholder={withdrawCrypto === 'ETH (TRC20)' ? '0x...' : withdrawCrypto === 'BTC' ? '1A...' : 'T.....'} 
+                placeholder={withdrawCrypto === 'ETH (ERC20)' ? '0x...' : withdrawCrypto === 'BTC' ? '1A...' : 'T.....'} 
                 value={withdrawAddress} 
                 onChange={e => setWithdrawAddress(e.target.value)}
               />

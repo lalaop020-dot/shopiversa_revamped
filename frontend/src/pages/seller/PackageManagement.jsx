@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Check, ShieldCheck, AlertCircle, Upload } from 'lucide-react'
+import { Check, ShieldCheck, AlertCircle, Upload, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
 import { Input } from '../../components/common/Input'
@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { prepareProofFile } from '../../utils/proofFile'
 import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
 import { PROFIT_RATES } from '../../utils/packages'
+import api from '../../api/axios'
+
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
@@ -43,14 +45,16 @@ export default function PackageManagement() {
   const [selectedPlan, setSelectedPlan] = useState(null)
 
   // Deposit-style form state
-  const [selectedCrypto, setSelectedCrypto] = useState('USDT')
+  const [selectedCrypto, setSelectedCrypto] = useState('USDT (TRC20)')
   const [txid, setTxid] = useState('')
   const [proofFile, setProofFile] = useState(null)
   const [proofPreview, setProofPreview] = useState(null)
+  const [txnPwd, setTxnPwd] = useState('')
+  const [showTxnPwd, setShowTxnPwd] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const cryptoOptions = ['USDT', 'ETH (TRC20)', 'BTC']
+  const cryptoOptions = ['USDT (TRC20)', 'ETH (ERC20)', 'BTC']
 
   const activeAdminWallet = addressFor(depositWallets, selectedCrypto)
 
@@ -118,8 +122,9 @@ export default function PackageManagement() {
       return
     }
     setSelectedPlan(pkg)
-    setSelectedCrypto('USDT')
+    setSelectedCrypto('USDT (TRC20)')
     setTxid('')
+    setTxnPwd('')
     setProofFile(null)
     setProofPreview(null)
     setSubmitted(false)
@@ -146,8 +151,13 @@ export default function PackageManagement() {
     if (!activeAdminWallet) return toast.error('No payment address is set for this network yet. Choose another network or contact support.')
     if (!txid.trim()) return toast.error('Transaction ID (TXID) is required')
     if (!proofFile) return toast.error('Please upload a screenshot of your payment')
+    if (!txnPwd.trim()) return toast.error('Please enter your transaction password')
+
     setIsSubmitting(true)
     try {
+      // Verify transaction password first
+      await api.post('/auth/verify-transaction-password', { password: txnPwd })
+
       await addPackageRequest(
         email,
         selectedPlan.name,
@@ -444,6 +454,31 @@ export default function PackageManagement() {
                       className="hidden"
                       onChange={handleProofChange}
                     />
+                  </div>
+
+                  {/* Transaction Password */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
+                      Transaction Password <span className="normal-case font-normal text-red-400">(required)</span>
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showTxnPwd ? "text" : "password"}
+                        placeholder="••••••"
+                        value={txnPwd}
+                        onChange={(e) => setTxnPwd(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                      <KeyRound className="absolute left-3 top-2.5 w-5 h-5 text-slate-500" />
+                      <button
+                        type="button"
+                        onClick={() => setShowTxnPwd(!showTxnPwd)}
+                        className="absolute right-3 top-2.5 text-slate-500 hover:text-white transition-colors"
+                      >
+                        {showTxnPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Actions */}
