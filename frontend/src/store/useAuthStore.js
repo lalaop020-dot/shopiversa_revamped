@@ -6,6 +6,39 @@ import useOrderStore from './useOrderStore'
 import useChatStore from './useChatStore'
 import usePlatformStore from './usePlatformStore'
 
+// ── Default transaction-password helpers ─────────────────────────────────────
+// Generates a stable 6-char alphanumeric code for a given seller email.
+// The code is seeded from the email so the same email always produces the
+// same result (deterministic), and is cached in localStorage so refreshing
+// the page never changes it. Sellers can override it via Settings → Security.
+const TXN_PWD_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+const TXN_PWD_LENGTH  = 6
+
+function seededRandom(seed) {
+  // Simple LCG-based PRNG so the same seed always yields the same sequence.
+  let s = 0
+  for (let i = 0; i < seed.length; i++) s = (s * 31 + seed.charCodeAt(i)) >>> 0
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 0x100000000
+  }
+}
+
+export function getOrCreateDefaultTxnPassword(email) {
+  if (!email) return '------'
+  const storageKey = `txnpwd:${email}`
+  const existing = localStorage.getItem(storageKey)
+  if (existing) return existing
+  // Generate once and persist
+  const rand = seededRandom(email + 'shopiversa_v1')
+  let pwd = ''
+  for (let i = 0; i < TXN_PWD_LENGTH; i++) {
+    pwd += TXN_PWD_CHARSET[Math.floor(rand() * TXN_PWD_CHARSET.length)]
+  }
+  localStorage.setItem(storageKey, pwd)
+  return pwd
+}
+
 const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -83,6 +116,13 @@ const useAuthStore = create(
       // Keep for backward compat — registers locally if no backend
       registerUser: (name, email, password, role) => {
         console.warn('registerUser is a local mock — use registerSeller/registerCustomer instead')
+      },
+
+      // Returns the auto-generated default transaction password for the
+      // currently logged-in seller. Reads from / creates in localStorage.
+      getDefaultTxnPassword: () => {
+        const email = get().user?.email
+        return getOrCreateDefaultTxnPassword(email)
       },
 
     }),

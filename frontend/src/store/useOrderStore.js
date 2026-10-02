@@ -258,6 +258,15 @@ const useOrderStore = create(
         } catch { return get().adminOrders }
       },
 
+
+      // ── Transaction password verification (seller order actions) ─────
+      // Calls POST /auth/verify-transaction-password with { password }.
+      // Returns { success: true } on match, throws on mismatch/error.
+      verifyTransactionPassword: async (password) => {
+        const { data } = await api.post('/auth/verify-transaction-password', { password })
+        return data
+      },
+
     }),
     { name: 'shopiversa-orders-v2' }
   )
