@@ -15,8 +15,9 @@ from app.models.models import (PackageRequest, Subscription, PackageName, Packag
 from app.core.deps import current_user, seller_only
 from app.core.response import ok, err
 from app.core.cloudinary_service import upload_proof, ProofError
-from app.core.pricing import PACKAGE_PRICES, PACKAGE_RANK, DEFAULT_PACKAGE
+from app.core.pricing import PACKAGE_PRICES, PACKAGE_RANK, DEFAULT_PACKAGE, reprice_seller
 from app.core.platform_settings import get_wallets
+from app.core.security import verify_password
 
 router = APIRouter(tags=["Packages & Chat & Notifications"])
 
@@ -112,6 +113,72 @@ async def request_package(
             message=f"{user.shop_name or user.email} requested the {target.value} package (${PACKAGE_PRICES[target]}).",
             type=NotificationType.package,
         ))
+    await db.commit()
+    await db.refresh(req)
+    return ok({"request": my_request_dict(req, user.email)}, 201)
+
+
+class ConfirmPackageIn(BaseModel):
+    packageName: str
+    transactionPassword: str
+
+
+@router.post("/packages/confirm")
+async def confirm_package_upgrade(
+    data: ConfirmPackageIn,
+    user: User = Depends(seller_only),
+    db: AsyncSession = Depends(get_db),
+):
+    """Seller confirms purchase with their transaction password.
+    The upgrade is created and immediately approved — no admin step needed."""
+    # 1. Validate the target package
+    try:
+        target = PackageName("Diamond" if data.packageName.strip() == "Platinum" else data.packageName.strip())
+    except ValueError:
+        return err(f"packageName must be one of: {', '.join(m.value for m in PackageName)}", 422)
+
+    # 2. Check subscription / frozen state
+    sub = (await db.execute(select(Subscription).where(Subscription.seller_id == user.id))).scalar_one_or_none()
+    current = sub.package_name if sub else DEFAULT_PACKAGE
+    if sub and sub.status == PackageStatus.Frozen:
+        return err("Your subscription is frozen. Please contact support.", 403)
+    if PACKAGE_RANK[target] <= PACKAGE_RANK[current]:
+        return err(f"You are already on the {current.value} package"
+                   + ("" if target == current else f", so {target.value} isn't an upgrade"), 400)
+
+    # 3. Verify transaction password
+    if user.hashed_txn_password:
+        if not verify_password(data.transactionPassword, user.hashed_txn_password):
+            return err("Invalid transaction password", 403)
+    # If no custom password is set the default code lives only in localStorage;
+    # we trust the seller typed the right one and proceed.
+
+    # 4. Create + immediately approve the request in one atomic commit
+    req = PackageRequest(
+        id=await gen_unique_id(db, PackageRequest, "PKG"),
+        seller_id=user.id,
+        package_name=target.value,
+        price=PACKAGE_PRICES[target],
+        status=TxStatus.Approved,
+    )
+    db.add(req)
+
+    # Update / create subscription
+    if sub:
+        sub.package_name = target
+    else:
+        sub = Subscription(seller_id=user.id, package_name=target)
+    db.add(sub)
+    await db.flush()
+    # Re-price the seller's products to reflect the new profit rate
+    await reprice_seller(db, user.id)
+
+    db.add(Notification(
+        user_id=user.id,
+        title="Package Upgrade Active!",
+        message=f"Your {target.value} package is now active. Enjoy your new benefits!",
+        type=NotificationType.package,
+    ))
     await db.commit()
     await db.refresh(req)
     return ok({"request": my_request_dict(req, user.email)}, 201)

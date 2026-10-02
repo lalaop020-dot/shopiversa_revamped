@@ -76,6 +76,10 @@ class TxnPasswordUpdate(BaseModel):
     confirmPassword: str
 
 
+class TxnPasswordVerify(BaseModel):
+    password: str
+
+
 @router.post("/register")
 async def register_customer(data: RegisterIn, db: AsyncSession = Depends(get_db)):
     existing = await db.execute(select(User).where(User.email == data.email))
@@ -251,6 +255,22 @@ async def set_txn_password(data: TxnPasswordUpdate, user: User = Depends(current
     db.add(user)
     await db.commit()
     return ok({"success": True})
+
+
+@router.post("/verify-transaction-password")
+async def verify_txn_password(data: TxnPasswordVerify, user: User = Depends(current_user),
+                              db: AsyncSession = Depends(get_db)):
+    """Verify the caller's transaction password.
+    If the seller has never set a custom one (hashed_txn_password is NULL),
+    the request still succeeds so the UI can fall back to the default code
+    that is stored only in the seller's browser localStorage.
+    """
+    if user.hashed_txn_password:
+        if not verify_password(data.password, user.hashed_txn_password):
+            return err("Invalid transaction password", 403)
+    # No custom password set → accept whatever the seller typed (the default
+    # code is localStorage-only and the server cannot know it).
+    return ok({"verified": True})
 
 
 @router.put("/admin/credentials")

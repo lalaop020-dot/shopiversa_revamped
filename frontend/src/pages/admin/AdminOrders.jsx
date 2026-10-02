@@ -142,7 +142,8 @@ export default function AdminOrders() {
             <tbody className="divide-y divide-dark-border">
               {filteredOrders.map((order) => {
                 const { label, color, icon: Icon } = statusMeta(order.status)
-                const nextOpt = nextStatusOptions(order.status)[0]
+                const adminOptions = nextStatusOptions(order.status).filter(opt => opt !== 'Confirmed')
+                const nextOpt = adminOptions[0]
                 const customerEmail = getOrderCustomerEmail(order)
                 return (
                   <tr key={order.id} className="hover:bg-dark-bg/50 transition-colors">
@@ -162,18 +163,7 @@ export default function AdminOrders() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {order.status === 'Processing' && (
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs"
-                            isLoading={updatingOrderId === order.id}
-                            onClick={() => handleUpdateStatus(order.id, 'Confirmed')}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Place / Confirm Order
-                          </Button>
-                        )}
-                        {order.status !== 'Processing' && nextOpt && (
+                        {nextOpt && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -226,7 +216,7 @@ export default function AdminOrders() {
 
             {(() => {
               const { label, color, icon: Icon } = statusMeta(selectedOrder.status)
-              const options = nextStatusOptions(selectedOrder.status)
+              const options = nextStatusOptions(selectedOrder.status).filter(opt => opt !== 'Confirmed')
               return (
                 <div className="flex flex-wrap items-center gap-3 mb-6 bg-dark-bg/60 p-4 rounded-xl border border-dark-border">
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5 ${color}`}>
@@ -240,18 +230,16 @@ export default function AdminOrders() {
                           <Button
                             key={opt}
                             size="sm"
-                            variant={opt === 'Confirmed' ? 'primary' : opt === 'Cancelled' ? 'outline' : 'secondary'}
+                            variant={opt === 'Cancelled' ? 'outline' : 'secondary'}
                             className={
-                              opt === 'Confirmed'
-                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4'
-                                : opt === 'Cancelled'
+                              opt === 'Cancelled'
                                 ? 'border-red-500/50 text-red-400 hover:bg-red-500/10'
                                 : ''
                             }
                             isLoading={updatingOrderId === selectedOrder.id}
                             onClick={() => handleUpdateStatus(selectedOrder.id, opt)}
                           >
-                            {opt === 'Confirmed' ? '✓ Place / Confirm Order' : `Mark ${statusMeta(opt).label}`}
+                            Mark {statusMeta(opt).label}
                           </Button>
                         ))}
                       </div>

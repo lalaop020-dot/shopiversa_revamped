@@ -1,64 +1,40 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Check, ShieldCheck, AlertCircle, Upload, KeyRound, Eye, EyeOff } from 'lucide-react'
+import { Check, ShieldCheck, AlertCircle, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { Card } from '../../components/common/Card'
 import { Button } from '../../components/common/Button'
-import { Input } from '../../components/common/Input'
 import useAuthStore from '../../store/useAuthStore'
 import usePlatformStore, { DEFAULT_SUBSCRIPTION } from '../../store/usePlatformStore'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
-import { prepareProofFile } from '../../utils/proofFile'
-import DepositAddress, { addressFor } from '../../components/common/DepositAddress'
 import { PROFIT_RATES } from '../../utils/packages'
-import api from '../../api/axios'
-
 
 export default function PackageManagement() {
   const { user } = useAuthStore()
   const email = user?.email || 'seller@demo.com'
-  // Platform payment addresses, set by the admin and read from the server.
-  const depositWallets = usePlatformStore((state) => state.depositWallets)
 
   const sub = usePlatformStore((state) => state.sellerSubscriptions[email] || DEFAULT_SUBSCRIPTION)
-  const addPackageRequest = usePlatformStore((state) => state.addPackageRequest)
-  const allPackageRequests = usePlatformStore((state) => state.packageRequests)
+  const confirmPackageUpgrade = usePlatformStore((state) => state.confirmPackageUpgrade)
   const fetchCurrentPackage = usePlatformStore((state) => state.fetchCurrentPackage)
   const fetchPackageRequests = usePlatformStore((state) => state.fetchPackageRequests)
-  const fetchDepositWallets = usePlatformStore((state) => state.fetchDepositWallets)
-  const pendingRequests = useMemo(
-    () => allPackageRequests.filter((r) => r.sellerEmail === email && r.status === 'Pending'),
-    [allPackageRequests, email]
-  )
 
-  // Refresh the plan + request status regularly, so a seller sees their new
-  // package (and unlocked limits / profit rate) soon after the admin approves.
+  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
+
+  // Refresh plan regularly so seller sees their new package soon after confirming
   useEffect(() => {
-    const refresh = () => { fetchCurrentPackage(); fetchPackageRequests(); fetchDepositWallets() }
+    const refresh = () => { fetchCurrentPackage(); fetchPackageRequests() }
     refresh()
     const interval = setInterval(refresh, 10000)
     window.addEventListener('focus', refresh)
     return () => { clearInterval(interval); window.removeEventListener('focus', refresh) }
-  }, [fetchCurrentPackage, fetchPackageRequests, fetchDepositWallets])
+  }, [fetchCurrentPackage, fetchPackageRequests])
 
   // Modal state
   const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState(null)
-
-  // Deposit-style form state
-  const [selectedCrypto, setSelectedCrypto] = useState('USDT (TRC20)')
-  const [txid, setTxid] = useState('')
-  const [proofFile, setProofFile] = useState(null)
-  const [proofPreview, setProofPreview] = useState(null)
   const [txnPwd, setTxnPwd] = useState('')
   const [showTxnPwd, setShowTxnPwd] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-
-  const cryptoOptions = ['USDT (TRC20)', 'ETH (ERC20)', 'BTC']
-
-  const activeAdminWallet = addressFor(depositWallets, selectedCrypto)
-
-  const activeProfitRate = PROFIT_RATES[sub.name] || '17%'
 
   const packages = [
     {
@@ -117,16 +93,8 @@ export default function PackageManagement() {
       toast.success(`You are already subscribed to the ${pkg.name} package.`)
       return
     }
-    if (pendingRequests.length > 0) {
-      toast.error('You already have a pending upgrade request. Please wait for admin approval.')
-      return
-    }
     setSelectedPlan(pkg)
-    setSelectedCrypto('USDT (TRC20)')
-    setTxid('')
     setTxnPwd('')
-    setProofFile(null)
-    setProofPreview(null)
     setSubmitted(false)
     setCheckoutModalOpen(true)
   }
@@ -135,41 +103,17 @@ export default function PackageManagement() {
     setCheckoutModalOpen(false)
   }
 
-  const handleProofChange = async (e) => {
-    const input = e.target
-    if (!input.files[0]) return
-    const { file, error } = await prepareProofFile(input.files[0])
-    if (error) { toast.error(error); input.value = ''; return }
-    setProofFile(file)
-    const reader = new FileReader()
-    reader.onload = (ev) => setProofPreview(ev.target.result)
-    reader.readAsDataURL(file)
-  }
-
-  const handleSubmit = async (e) => {
+  const handleConfirmPurchase = async (e) => {
     e.preventDefault()
-    if (!activeAdminWallet) return toast.error('No payment address is set for this network yet. Choose another network or contact support.')
-    if (!txid.trim()) return toast.error('Transaction ID (TXID) is required')
-    if (!proofFile) return toast.error('Please upload a screenshot of your payment')
     if (!txnPwd.trim()) return toast.error('Please enter your transaction password')
-
     setIsSubmitting(true)
     try {
-      // Verify transaction password first
-      await api.post('/auth/verify-transaction-password', { password: txnPwd })
-
-      await addPackageRequest(
-        email,
-        selectedPlan.name,
-        selectedPlan.priceVal,
-        activeAdminWallet,
-        txid.trim(),
-        proofFile
-      )
+      await confirmPackageUpgrade(selectedPlan.name, txnPwd.trim())
       setSubmitted(true)
-      toast.success('Package upgrade request submitted! Awaiting admin approval.')
+      await fetchCurrentPackage()
+      toast.success(`${selectedPlan.name} package is now active!`)
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Submission failed. Please try again.')
+      toast.error(err?.response?.data?.message || 'Confirmation failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
@@ -180,7 +124,7 @@ export default function PackageManagement() {
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-2">Package Subscriptions</h1>
-          <p className="text-slate-400">Upgrade your membership plan to unlock new product limits & higher profit rates.</p>
+          <p className="text-slate-400">Upgrade your membership plan to unlock new product limits &amp; higher profit rates.</p>
         </div>
         <div className="bg-primary/10 border border-primary/30 rounded-2xl px-5 py-3 flex items-center gap-4">
           <div>
@@ -203,23 +147,6 @@ export default function PackageManagement() {
             <p className="text-xs text-slate-400 mt-1">
               Your access has been restricted by the Administrator. Please submit deposit payments or
               contact Admin Support to reactivate your store.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {pendingRequests.length > 0 && (
-        <div className="p-4 bg-accent-gold/10 border border-accent-gold/25 rounded-2xl flex items-center gap-3">
-          <AlertCircle className="w-6 h-6 text-accent-gold shrink-0 animate-pulse" />
-          <div>
-            <h4 className="font-bold text-accent-gold">Upgrade Pending Review</h4>
-            <p className="text-xs text-slate-400 mt-1">
-              Your upgrade to <strong>{pendingRequests[0].packageName}</strong> is pending manual
-              verification of transaction hash{' '}
-              <span className="font-mono bg-dark-bg px-1.5 py-0.5 rounded text-[11px] ml-1">
-                {pendingRequests[0].txHash?.substring(0, 16)}...
-              </span>
-              .
             </p>
           </div>
         </div>
@@ -287,7 +214,7 @@ export default function PackageManagement() {
         ))}
       </div>
 
-      {/* Checkout Modal */}
+      {/* Confirm Purchase Modal */}
       <AnimatePresence>
         {checkoutModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -302,9 +229,9 @@ export default function PackageManagement() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="glass-card w-full max-w-lg rounded-2xl relative z-10 overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="glass-card w-full max-w-md rounded-2xl relative z-10 overflow-hidden"
             >
-              {/* ── Success State ── */}
+              {/* Success State */}
               {submitted ? (
                 <div className="p-8 space-y-6 text-center">
                   <motion.div
@@ -316,87 +243,31 @@ export default function PackageManagement() {
                     <ShieldCheck className="w-9 h-9 text-green-500" />
                   </motion.div>
                   <div>
-                    <h3 className="font-bold text-xl text-white">Request Submitted!</h3>
+                    <h3 className="font-bold text-xl text-white">Purchase Confirmed!</h3>
                     <p className="text-slate-400 text-sm mt-2 leading-relaxed">
                       Your{' '}
                       <strong className="text-white">
                         {selectedPlan?.name} ({selectedPlan?.price})
                       </strong>{' '}
-                      upgrade request has been queued. The admin will verify your transaction and
-                      activate your plan shortly.
+                      package is now active. Enjoy your new benefits!
                     </p>
-                  </div>
-                  <div className="bg-dark-bg border border-dark-border rounded-xl p-4 text-left space-y-2 font-mono text-xs text-slate-400">
-                    <div className="flex justify-between items-center">
-                      <span>Package:</span>
-                      <span className="text-white font-bold">{selectedPlan?.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Network:</span>
-                      <span className="text-white">{selectedCrypto}</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span>Transaction ID:</span>
-                      <span className="text-white break-all">{txid}</span>
-                    </div>
                   </div>
                   <Button className="w-full" onClick={handleCloseModal}>
                     Done
                   </Button>
                 </div>
               ) : (
-                /* ── Payment Form ── */
-                <form onSubmit={handleSubmit} className="p-8 space-y-5">
+                /* Confirm Purchase Form */
+                <form onSubmit={handleConfirmPurchase} className="p-8 space-y-6">
                   {/* Header */}
                   <div>
                     <h2 className="text-2xl font-bold">
                       Upgrade to{' '}
                       <span className="text-primary">{selectedPlan?.name}</span>
                     </h2>
-                    <p className="text-slate-400 text-xs mt-1">
-                      Send{' '}
-                      <strong className="text-white">{selectedPlan?.price} USDT equivalent</strong>{' '}
-                      to the platform address below, then enter your transaction ID to submit your
-                      upgrade request.
-                    </p>
                   </div>
 
-                  {/* Crypto selector */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-                      Select Crypto Network
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {cryptoOptions.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setSelectedCrypto(c)}
-                          className={`py-2 px-3 text-xs font-bold rounded-lg border transition-all ${
-                            selectedCrypto === c
-                              ? 'bg-primary text-white border-primary shadow-md shadow-primary/25'
-                              : 'bg-dark-bg text-slate-400 border-dark-border hover:border-slate-600'
-                          }`}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Admin wallet address */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-                      Send {selectedCrypto} To This Address
-                    </label>
-                    <DepositAddress address={activeAdminWallet} network={selectedCrypto} />
-                    <p className="text-[10px] text-slate-500 mt-1.5">
-                      ⚠️ Only send {selectedCrypto} on the correct network. Wrong network transfers
-                      cannot be recovered.
-                    </p>
-                  </div>
-
-                  {/* Amount display */}
+                  {/* Package Price */}
                   <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-xl px-4 py-3">
                     <span className="text-sm text-slate-400">Package Price</span>
                     <span className="text-lg font-extrabold text-primary">
@@ -404,77 +275,47 @@ export default function PackageManagement() {
                     </span>
                   </div>
 
-                  {/* TXID input */}
-                  <Input
-                    label="Transaction ID (TXID)"
-                    placeholder="Paste your blockchain transaction ID here"
-                    value={txid}
-                    onChange={(e) => setTxid(e.target.value)}
-                    required
-                  />
+                  {/* Transaction Password Section */}
+                  <div className="space-y-3">
+                    <p className="text-sm text-slate-300 font-medium">
+                      Enter your transaction password to confirm purchase
+                    </p>
 
-                  {/* Screenshot proof */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-                      Payment Screenshot{' '}
-                      <span className="normal-case font-normal text-red-400">(required)</span>
-                    </label>
-                    <label
-                      htmlFor="pkg-proof"
-                      className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-4 cursor-pointer transition-all ${
-                        proofFile
-                          ? 'border-primary/50 bg-primary/5'
-                          : 'border-dark-border hover:border-slate-500 bg-dark-bg'
-                      }`}
-                    >
-                      {proofPreview ? (
-                        <img
-                          src={proofPreview}
-                          alt="Proof preview"
-                          className="max-h-28 rounded-lg object-contain"
-                        />
-                      ) : (
-                        <>
-                          <Upload className="w-6 h-6 text-slate-500" />
-                          <span className="text-xs text-slate-500">
-                            Click to upload a screenshot
-                          </span>
-                        </>
-                      )}
-                      {proofFile && (
-                        <span className="text-[10px] text-primary font-medium truncate max-w-full">
-                          {proofFile.name}
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      id="pkg-proof"
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={handleProofChange}
-                    />
-                  </div>
+                    {/* 5-slot visual password dots */}
+                    <div className="flex items-center justify-center gap-3 py-2">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={i}
+                          className={`w-10 h-10 rounded-xl border-2 flex items-center justify-center transition-all ${
+                            txnPwd.length > i
+                              ? 'border-primary bg-primary/15'
+                              : 'border-dark-border bg-dark-bg'
+                          }`}
+                        >
+                          {txnPwd.length > i && (
+                            <span className="w-3 h-3 rounded-full bg-primary block" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
 
-                  {/* Transaction Password */}
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">
-                      Transaction Password <span className="normal-case font-normal text-red-400">(required)</span>
-                    </label>
+                    {/* Actual password input */}
                     <div className="relative">
-                      <Input
-                        type={showTxnPwd ? "text" : "password"}
-                        placeholder="••••••"
+                      <input
+                        type={showTxnPwd ? 'text' : 'password'}
                         value={txnPwd}
                         onChange={(e) => setTxnPwd(e.target.value)}
-                        className="pl-10"
+                        className="input-field pr-10 pl-10 font-mono tracking-widest text-center"
+                        placeholder="Enter password"
+                        maxLength={8}
+                        autoComplete="off"
                         required
                       />
-                      <KeyRound className="absolute left-3 top-2.5 w-5 h-5 text-slate-500" />
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none" />
                       <button
                         type="button"
                         onClick={() => setShowTxnPwd(!showTxnPwd)}
-                        className="absolute right-3 top-2.5 text-slate-500 hover:text-white transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                       >
                         {showTxnPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
@@ -491,8 +332,12 @@ export default function PackageManagement() {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" className="flex-1" isLoading={isSubmitting}>
-                      Submit Upgrade Request
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-green-600 hover:bg-green-500 text-white border-green-600"
+                      isLoading={isSubmitting}
+                    >
+                      Confirm Purchase
                     </Button>
                   </div>
                 </form>

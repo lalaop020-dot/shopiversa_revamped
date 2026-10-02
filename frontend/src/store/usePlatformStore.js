@@ -204,6 +204,13 @@ const usePlatformStore = create(
         } catch (e) { return DEFAULT_SUBSCRIPTION }
       },
 
+      confirmPackageUpgrade: async (packageName, transactionPassword) => {
+        const { data } = await api.post('/packages/confirm', { packageName, transactionPassword })
+        const req = data.data.request
+        set((state) => ({ packageRequests: [req, ...state.packageRequests] }))
+        return req
+      },
+
       addPackageRequest: async (email, packageName, price, walletAddress, txHash, proofFile) => {
         const form = new FormData()
         form.append('packageName', packageName)
