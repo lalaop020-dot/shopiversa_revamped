@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Filter, Search, Eye, ShoppingBag, X, MapPin, CreditCard,
+  Filter, Search, ShoppingBag, X, MapPin, CreditCard,
   ShieldCheck, Lock, ArrowRight, KeyRound, CheckCircle2,
   AlertTriangle, EyeOff,
 } from 'lucide-react'
