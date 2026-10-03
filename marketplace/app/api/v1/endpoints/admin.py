@@ -447,8 +447,11 @@ async def all_subscriptions(admin: User = Depends(admin_only), db: AsyncSession 
         {
             "sellerId": s.seller_id,
             "sellerEmail": s.seller.email if s.seller else None,
+            "shopName": s.seller.shop_name if s.seller else None,
+            "sellerName": s.seller.name if s.seller else None,
             "packageName": s.package_name.value,
             "status": s.status.value,
+            "startDate": s.activated_at.isoformat() if s.activated_at else None,
         }
         for s in subs
     ]})
