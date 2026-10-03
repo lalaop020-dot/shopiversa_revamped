@@ -522,79 +522,61 @@ export default function SellerRegister() {
           {/* Profile Picture */}
           <AvatarUpload preview={profilePic} onUpload={(img, file) => { setProfilePic(img); setProfileFile(file) }} />
 
-          <div className="relative">
-            <Input
-              id="shopName"
-              label="Shop Name"
-              placeholder="My Awesome Store"
-              className="pl-10"
-              error={errors.shopName?.message}
-              {...register('shopName')}
-            />
-            <Store className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-          </div>
-          <div className="relative">
-            <Input
-              id="name"
-              label="Your Full Name"
-              placeholder="John Doe"
-              className="pl-10"
-              error={errors.name?.message}
-              {...register('name')}
-            />
-            <User className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-          </div>
-          <div className="relative">
-            <Input
-              id="email"
-              label="Email Address"
-              placeholder="you@shop.com"
-              className="pl-10"
-              error={errors.email?.message}
-              {...register('email')}
-            />
-            <Mail className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-          </div>
-          <div className="relative">
-            <Input
-              id="password"
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              className="pl-10"
-              error={errors.password?.message}
-              {...register('password')}
-            />
-            <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-          </div>
+          <Input
+            id="shopName"
+            label="Shop Name"
+            placeholder="My Awesome Store"
+            icon={Store}
+            error={errors.shopName?.message}
+            {...register('shopName')}
+          />
+          <Input
+            id="name"
+            label="Your Full Name"
+            placeholder="John Doe"
+            icon={User}
+            error={errors.name?.message}
+            {...register('name')}
+          />
+          <Input
+            id="email"
+            label="Email Address"
+            placeholder="you@shop.com"
+            icon={Mail}
+            error={errors.email?.message}
+            {...register('email')}
+          />
+          <Input
+            id="password"
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            icon={Lock}
+            error={errors.password?.message}
+            {...register('password')}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="relative">
               <Input
                 id="txnPassword"
                 label="Enter Transaction Password"
                 type="password"
                 placeholder="•••••"
                 maxLength={5}
-                className="pl-10"
+                icon={Lock}
                 error={errors.txnPassword?.message}
                 {...register('txnPassword')}
               />
-              <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-            </div>
-            <div className="relative">
               <Input
                 id="confirmTxnPassword"
                 label="Confirm Transaction Password"
                 type="password"
                 placeholder="•••••"
                 maxLength={5}
-                className="pl-10"
+                icon={Lock}
                 error={errors.confirmTxnPassword?.message}
                 {...register('confirmTxnPassword')}
               />
-              <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-            </div>
           </div>
 
           <Button type="submit" className="w-full group mt-2">

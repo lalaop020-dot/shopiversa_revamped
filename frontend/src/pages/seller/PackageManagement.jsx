@@ -156,7 +156,7 @@ export default function PackageManagement() {
         {packages.map((pkg, i) => (
           <Card
             key={i}
-            className={`relative flex flex-col justify-between p-8 border-2 ${
+            className={`relative overflow-visible flex flex-col justify-between p-8 border-2 ${
               pkg.current
                 ? sub.status === 'Frozen'
                   ? 'border-red-500 bg-red-500/5'

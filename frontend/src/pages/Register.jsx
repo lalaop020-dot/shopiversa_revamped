@@ -46,21 +46,12 @@ export default function Register() {
         <p className="text-slate-400 text-sm">Join the Shopiversa marketplace today</p>
       </div>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="relative">
-          <Input id="name" label="Full Name" placeholder="John Doe"
-            className="pl-10" error={errors.name?.message} {...register('name')} />
-          <User className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-        </div>
-        <div className="relative">
-          <Input id="email" label="Email Address" placeholder="name@example.com"
-            className="pl-10" error={errors.email?.message} {...register('email')} />
-          <Mail className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-        </div>
-        <div className="relative">
-          <Input id="password" label="Password" type="password" placeholder="••••••••"
-            className="pl-10" error={errors.password?.message} {...register('password')} />
-          <Lock className="absolute left-3 top-[38px] w-5 h-5 text-slate-500" />
-        </div>
+        <Input id="name" label="Full Name" placeholder="John Doe"
+          icon={User} error={errors.name?.message} {...register('name')} />
+        <Input id="email" label="Email Address" placeholder="name@example.com"
+          icon={Mail} error={errors.email?.message} {...register('email')} />
+        <Input id="password" label="Password" type="password" placeholder="••••••••"
+          icon={Lock} error={errors.password?.message} {...register('password')} />
         <Button type="submit" className="w-full" isLoading={isLoading}>Create Account</Button>
       </form>
       <p className="text-center text-sm text-slate-400">
