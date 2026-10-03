@@ -49,8 +49,11 @@ export default function AdminPackages() {
           <table className="w-full text-left">
             <thead className="bg-dark-bg text-slate-400 text-sm">
               <tr>
-                <th className="px-6 py-4 font-medium">Seller Email</th>
+                <th className="px-6 py-4 font-medium">Seller ID</th>
+                <th className="px-6 py-4 font-medium">Shop Name</th>
                 <th className="px-6 py-4 font-medium">Current Package</th>
+                <th className="px-6 py-4 font-medium">KYC Details</th>
+                <th className="px-6 py-4 font-medium">Active Date</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium text-right">Freeze Actions</th>
               </tr>
@@ -58,9 +61,21 @@ export default function AdminPackages() {
             <tbody className="divide-y divide-dark-border">
               {adminSubscriptions.map((sub) => (
                 <tr key={sub.sellerId} className="hover:bg-dark-bg/50 transition-colors">
-                  <td className="px-6 py-4 font-semibold text-sm">{sub.sellerEmail}</td>
+                  <td className="px-6 py-4 font-mono text-xs text-slate-500">{sub.sellerId}</td>
+                  <td className="px-6 py-4 font-semibold text-sm">
+                    {sub.shopName || 'Unknown Shop'}
+                    <div className="text-[10px] text-slate-500 font-normal">{sub.sellerEmail}</div>
+                  </td>
                   <td className="px-6 py-4 font-bold text-primary">
                     {normalizePackageName(sub.packageName)} <span className="text-xs font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full ml-1">({PROFIT_RATES[normalizePackageName(sub.packageName)] || '17%'} Profit)</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-xs font-semibold text-green-400 bg-green-500/10 px-2 py-1 rounded-full">
+                      Verified
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-slate-400">
+                    {sub.startDate ? new Date(sub.startDate).toLocaleDateString() : 'N/A'}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`flex items-center gap-1.5 ${
@@ -94,7 +109,7 @@ export default function AdminPackages() {
               ))}
               {adminSubscriptions.length === 0 && (
                 <tr>
-                  <td colSpan="4" className="text-center py-10 text-slate-500">
+                  <td colSpan="7" className="text-center py-10 text-slate-500">
                     No seller subscriptions found.
                   </td>
                 </tr>
