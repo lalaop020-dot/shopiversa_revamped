@@ -25,10 +25,32 @@ export default function AdminPackages() {
   const [kycLoading, setKycLoading] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
 
+  // Seller lookup map: sellerId → { shopName, name }
+  const [sellerMap, setSellerMap] = useState({})
+
   useEffect(() => {
     fetchAdminSubscriptions()
+    // Fetch all approved sellers to get real shop names
+    api.get('/admin/sellers?limit=500')
+      .then(({ data }) => {
+        const sellers = data?.data?.sellers || []
+        const map = {}
+        sellers.forEach(s => { map[String(s.id)] = { shopName: s.shopName, name: s.name } })
+        setSellerMap(map)
+      })
+      .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Helper: resolve the display name for a subscription row
+  const getShopName = (sub) => {
+    const info = sellerMap[String(sub.sellerId)]
+    return info?.shopName || sub.shopName || null
+  }
+  const getOwnerName = (sub) => {
+    const info = sellerMap[String(sub.sellerId)]
+    return info?.name || null
+  }
 
   const handleToggleFreeze = async (sellerId, email, currentStatus) => {
     try {
@@ -99,7 +121,7 @@ export default function AdminPackages() {
                 <tr key={sub.sellerId} className="hover:bg-dark-bg/50 transition-colors">
                   <td className="px-6 py-4 font-mono text-xs text-slate-500">{sub.sellerId}</td>
                   <td className="px-6 py-4 font-semibold text-sm">
-                    {sub.shopName || 'Unknown Shop'}
+                    {getShopName(sub) || <span className="text-slate-500 italic text-xs">Loading…</span>}
                     <div className="text-[10px] text-slate-500 font-normal">{sub.sellerEmail}</div>
                   </td>
                   <td className="px-6 py-4 font-bold text-primary">
@@ -179,8 +201,11 @@ export default function AdminPackages() {
               <div className="flex items-start justify-between pb-4 border-b border-dark-border">
                 <div>
                   <h2 className="text-2xl font-bold">
-                    {selectedSub.shopName || 'Unknown Shop'}
+                    {getShopName(selectedSub) || selectedSub.sellerEmail}
                   </h2>
+                  {getOwnerName(selectedSub) && (
+                    <p className="text-slate-300 text-xs font-medium mt-0.5">Owner: {getOwnerName(selectedSub)}</p>
+                  )}
                   <p className="text-slate-400 text-sm mt-0.5">{selectedSub.sellerEmail}</p>
                 </div>
                 <button
