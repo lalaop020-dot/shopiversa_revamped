@@ -401,8 +401,6 @@ export default function DashboardOverview({ role }) {
           </div>
         </Card>
       </div>
-
-      )}
     </div>
   )
 }
