@@ -83,7 +83,6 @@ export default function ShopSettings() {
   const tabs = [
     { id: 'shop', label: 'Shop Profile', icon: Store },
     { id: 'kyc', label: 'KYC Documents', icon: ShieldCheck },
-    { id: 'wallet', label: 'Withdrawal Info', icon: Wallet },
     { id: 'security', label: 'Security', icon: Lock },
   ]
 
@@ -494,41 +493,7 @@ export default function ShopSettings() {
               </div>
             )}
 
-            {/* ── Wallet / Withdrawal Info ── */}
-            {activeTab === 'wallet' && (
-              <div className="space-y-6 animate-fade-in">
-                <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl mb-6">
-                  <div className="flex items-start gap-3">
-                    <Wallet className="w-5 h-5 text-primary mt-1" />
-                    <div>
-                      <h4 className="font-bold text-sm text-primary">Withdrawal Configuration</h4>
-                      <p className="text-xs text-slate-400 mt-1">Configure your crypto wallet addresses for payouts.</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="space-y-4">
-                  <Input 
-                    label="USDT Wallet Address (TRC20)" 
-                    placeholder="Your payout address"
-                    value={usdtAddress} 
-                    onChange={(e) => setUsdtAddress(e.target.value)} 
-                  />
-                  <Input 
-                    label="ETH Wallet Address (TRC20)" 
-                    placeholder="Your payout address"
-                    value={ethAddress} 
-                    onChange={(e) => setEthAddress(e.target.value)} 
-                  />
-                  <Input 
-                    label="BTC Wallet Address" 
-                    placeholder="Your payout address"
-                    value={btcAddress} 
-                    onChange={(e) => setBtcAddress(e.target.value)} 
-                  />
-                </div>
-              </div>
-            )}
 
             {/* ── Security ── */}
             {activeTab === 'security' && (
