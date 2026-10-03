@@ -569,7 +569,7 @@ export default function SellerRegister() {
               />
               <Input
                 id="confirmTxnPassword"
-                label="Confirm Transaction Password"
+                label="Confirm Password"
                 type="password"
                 placeholder="•••••"
                 maxLength={5}
